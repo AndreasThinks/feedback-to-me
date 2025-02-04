@@ -174,13 +174,22 @@ def get_magic(email: str):
         ]
     )
 
+@rt("/magic/regenerate")
+def regenerate_magic_link(email: str, process_id: str):
+    new_link = generate_magic_link(email, process_id)
+    copy_script = Script(f"navigator.clipboard.writeText('{new_link}'); alert('Magic link copied to clipboard!');")
+    return Titled(
+        title="Magic Link Regenerated",
+        content=[P(f"New magic link for {email}: {new_link}"), copy_script]
+    )
+
 # -------------------------------
 # Route: Feedback Submission (GET)
 # -------------------------------
 @rt("/feedback/submit/{token}")
 def get_feedback_submit(token: str):
     try:
-        record = magic_links_tb[token]
+        record = feedback_request_tb[token]
     except Exception:
         record = None
     if record and record["expiry"] > datetime.now():
@@ -498,10 +507,11 @@ def post_process_new(auth, peers: str, supervisors: str, subordinates: str = "")
     }
     process = feedback_process_tb.insert(process_data)
     
-    # Generate magic links (feedback requests) for each contact
+    # Generate magic links (feedback requests) for each contact,
+    # linking them to the newly created process.
     magic_links = []
     for email in peer_list + supervisor_list + subordinate_list:
-        link = generate_magic_link(email)
+        link = generate_magic_link(email, process.id)
         magic_links.append((email, link))
     
     # Redirect the user to the process detail page (status view)
@@ -570,24 +580,42 @@ def get_process_status(process_id: str, auth):
         return Titled("Process Not Found", P("No feedback process found for the given ID."))
     if process.user_id != auth:
         return Titled("Access Denied", P("You are not allowed to view this process."))
-    # Retrieve feedback submissions for this process
     feedbacks = feedback_tb("process_id=?", (process_id,))
+    requests = feedback_request_tb("process_id=?", (process_id,))
     total_required = process.min_required_peers + process.min_required_supervisors + process.min_required_reports
     received = process.feedback_count
-    pending = total_required - received
+    # Compute counts from feedback requests
+    requests_generated = len(requests) if requests else 0
+    completed_requests = sum(1 for req in requests if req.feedback_text)
+    pending_requests = requests_generated - completed_requests
     details_section = Div(
         H2("Process Details"),
         P(f"Process ID: {process.id}"),
         P(f"Created at: {process.created_at}"),
         P(f"Status: {process.status.capitalize()}"),
-        P(f"Feedback received: {received} / {total_required}"),
-        P(f"Pending feedback requests: {pending}")
+        P(f"Feedback submissions received: {received}"),
+        P(f"Feedback requests generated: {requests_generated}"),
+        P(f"Pending feedback requests: {pending_requests}")
     )
-    feedback_list = Ul(*[Li(
-        P(f"Feedback from: {fb.provider_id if fb.provider_id else 'Anonymous'}"),
-        P(f"Feedback: {fb.feedback_text}")
-    ) for fb in feedbacks]) if feedbacks else P("No feedback submitted yet.")
-    page_content = Div(details_section, H2("Feedback Submissions"), feedback_list)
+    if requests:
+        requests_list = Ul(*[
+            Li(
+                P(f"Provider Email: {req.email}"),
+                P(f"Request Status: {'Completed' if req.feedback_text else 'Pending'}"),
+                A("Regenerate Magic Link", href=f"/magic/regenerate?email={req.email}&process_id={process.id}", cls="button")
+            )
+            for req in requests
+        ])
+    else:
+        requests_list = P("No feedback requests available.")
+    if feedbacks:
+        feedback_list = Ul(*[Li(
+            P(f"Feedback from: {fb.provider_id if fb.provider_id else 'Anonymous'}"),
+            P(f"Feedback: {fb.feedback_text}")
+        ) for fb in feedbacks])
+    else:
+        feedback_list = P("No feedback submitted yet.")
+    page_content = Div(details_section, H2("Feedback Requests"), requests_list, H2("Feedback Submissions"), feedback_list)
     return Titled("Process Details", page_content)
 
 # -------------
