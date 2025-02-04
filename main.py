@@ -177,11 +177,9 @@ def get_magic(email: str):
 @rt("/magic/regenerate")
 def regenerate_magic_link(email: str, process_id: str):
     new_link = generate_magic_link(email, process_id)
-    copy_script = Script(f"navigator.clipboard.writeText('{new_link}'); alert('Magic link copied to clipboard!');")
-    return Titled(
-        title="Magic Link Regenerated",
-        content=[P(f"New magic link for {email}: {new_link}"), copy_script]
-    )
+    # Return a script fragment that copies the new magic link to clipboard and displays a confirmation message,
+    # without redirecting the user.
+    return NotStr(f"<script>navigator.clipboard.writeText('{new_link}');</script><span>Magic link copied to clipboard!</span>")
 
 # -------------------------------
 # Route: Feedback Submission (GET)
@@ -192,7 +190,12 @@ def get_feedback_submit(token: str):
         record = feedback_request_tb[token]
     except Exception:
         record = None
-    if record and record["expiry"] > datetime.now():
+    # Convert expiry to datetime if necessary
+    if record:
+        exp = record.expiry if isinstance(record.expiry, datetime) else datetime.fromisoformat(record.expiry)
+    else:
+        exp = None
+    if record and exp and exp > datetime.now():
         form = Form(
             Group(
                 *[Group(Label(q), Input(type="range", min=1, max=8, value=4, id=f"rating_{q.lower()}"))
@@ -203,7 +206,7 @@ def get_feedback_submit(token: str):
             hx_post="/feedback/submit",
             hx_target="#feedback-status"
         )
-        return Titled(title="Submit Feedback", content=form)
+        return Titled("Submit Feedback", form)
     else:
         return Titled(
             title="Invalid or Expired Link",
@@ -602,7 +605,7 @@ def get_process_status(process_id: str, auth):
             Li(
                 P(f"Provider Email: {req.email}"),
                 P(f"Request Status: {'Completed' if req.feedback_text else 'Pending'}"),
-                A("Regenerate Magic Link", href=f"/magic/regenerate?email={req.email}&process_id={process.id}", cls="button")
+                P(f"Magic Link: /feedback/submit/{req.token}", cls="magic-link")
             )
             for req in requests
         ])
