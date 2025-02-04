@@ -76,29 +76,36 @@ class FeedbackProcess:
 
 feedback_process_tb = db.create(FeedbackProcess, pk="id")
 
-# Magic links table: stores tokens for magic link authentication (Feedback Requests)
+# FeedbackRequest table: stores feedback request tokens linked to a feedback process.
 @dataclass
-class MagicLink:
+class FeedbackRequest:
     token: str
     email: str
+    process_id: Optional[str]  # Link back to FeedbackProcess; may be None for standalone requests.
     expiry: datetime
+    feedback_text: Optional[str] = None  # Filled when feedback is submitted.
+    ratings: Optional[dict] = None       # Filled with rating scores when feedback is submitted.
 
-magic_links_tb = db.create(MagicLink, pk="token")
+
+feedback_request_tb = db.create(FeedbackRequest, pk="token")
 
 # ----------------------------------
 # Utility Functions and Business Logic
 # ----------------------------------
-def generate_magic_link(email: str) -> str:
+def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
     """
-    Generates a unique magic link token, stores it with expiry, and returns the link.
-    This represents a FeedbackRequest.
+    Generates a unique magic link token, stores it with expiry in the FeedbackRequest table, and returns the link.
+    Optionally links it to a specific FeedbackProcess.
     """
     token = secrets.token_urlsafe()
     expiry = datetime.now() + timedelta(days=MAGIC_LINK_EXPIRY_DAYS)
-    magic_links_tb.insert({
+    feedback_request_tb.insert({
         "token": token,
         "email": email,
-        "expiry": expiry
+        "process_id": process_id,
+        "expiry": expiry,
+        "feedback_text": None,
+        "ratings": None
     })
     return f"/feedback/submit/{token}"
 
