@@ -1,0 +1,35 @@
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Environment files
+.env
+.sesskey
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+venv/
+.venv/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Logs
+*.log
+
+# Editors
+.vscode/
+.idea/
+
+# Build artifacts
+.DS_Store
+*.swp
+*.swo
