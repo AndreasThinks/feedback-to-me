@@ -249,17 +249,21 @@ def post_feedback(feedback_text: str, sess, **kwargs):
 # ------------------------------
 # Route: Feedback Report Generation (Feedback Report)
 # ------------------------------
-@rt("/feedback/report/{user_id}")
-def get_report(user_id: str, auth):
-    if auth != user_id:
+@rt("/feedback/report/{process_id}")
+def get_report(process_id: str, auth):
+    try:
+        process = feedback_process_tb[process_id]
+    except Exception:
+        return Titled("Process Not Found", P("No feedback process found for the given ID."))
+    if process.user_id != auth:
         return Titled(
             title="Access Denied",
             content=P("You are not allowed to view this Feedback Report.")
         )
     return Titled(
-        title="Feedback Report",
-        content=P("Feedback Report contents would be generated here.")
-    )
+            title="Feedback Report",
+            content=P("Feedback Report contents would be generated here.")
+        )
 
 # ------------------------------
 # Basic Login and Logout Routes
@@ -386,7 +390,7 @@ def get_home(req):
                 H3(f"Process from {created_at.strftime('%B %d, %Y')}"),
                 P(f"Status: ", Span(process.status.title(), cls=f"pill {status_cls}")),
                 P(f"Feedback received: {process.feedback_count} / {total_required}"),
-                A("View Details", href=f"/feedback/report/{process.id}", cls="button"),
+                A("View Details", href=f"/feedback/process/{process.id}/status", cls="button"),
                 cls="report-item"
             )
         )
@@ -448,12 +452,12 @@ def get_process_new():
             Input(name="subordinates", type="text", placeholder="Enter subordinate emails separated by commas")
         ),
         Button("Create Feedback Process", type="submit"),
-        action="/feedback/process/new",
+        action="/feedback/process/create",
         method="post"
     )
     return Titled("New Feedback Process", Container(form))
 
-@rt("/feedback/process/new")
+@rt("/feedback/process/create")
 def post_process_new(auth, peers: str, supervisors: str, subordinates: str = ""):
     """Create a new feedback process and generate feedback requests"""
     # Split and validate the email lists
@@ -493,15 +497,8 @@ def post_process_new(auth, peers: str, supervisors: str, subordinates: str = "")
         link = generate_magic_link(email)
         magic_links.append((email, link))
     
-    # Show success page with the generated links
-    content = Container([
-        H2("Feedback Process Created"),
-        P("Your feedback process has been created successfully. Share these links with your contacts:"),
-        *[P(f"{email}: {link}") for email, link in magic_links],
-        A("Return to Dashboard", href="/", cls="button", style="margin-top: 2rem;")
-    ])
-    
-    return Titled("Feedback Process Created", content)
+    # Redirect the user to the process detail page (status view)
+    return RedirectResponse(f"/feedback/process/{process.id}/status", status_code=303)
 
 # ------------------------------
 # Route: Feedback Report Generation (Feedback Report)
@@ -520,10 +517,10 @@ def post_feedback_report_generate(process_id: str, auth):
                 title="Cannot Generate Feedback Report",
                 content=P("This process cannot generate a report yet. Please wait until enough feedback is collected.")
             )
-        feedbacks = feedback_tb(process_id=process_id)
+        feedbacks = feedback_tb("process_id=?", (process_id,))
         all_themes = []
         for feedback in feedbacks:
-            themes = themes_tb(feedback_id=feedback.id)
+            themes = themes_tb("feedback_id=?", (feedback.id,))
             all_themes.extend(themes)
         theme_groups = {
             'positive': [],
@@ -557,6 +554,34 @@ def post_feedback_report_generate(process_id: str, auth):
             title="Error Generating Feedback Report",
             content=P(f"An error occurred while generating the report: {str(e)}")
         )
+
+@rt("/feedback/process/{process_id}/status")
+def get_process_status(process_id: str, auth):
+    try:
+        process = feedback_process_tb[process_id]
+    except Exception:
+        return Titled("Process Not Found", P("No feedback process found for the given ID."))
+    if process.user_id != auth:
+        return Titled("Access Denied", P("You are not allowed to view this process."))
+    # Retrieve feedback submissions for this process
+    feedbacks = feedback_tb("process_id=?", (process_id,))
+    total_required = process.min_required_peers + process.min_required_supervisors + process.min_required_reports
+    received = process.feedback_count
+    pending = total_required - received
+    details_section = Div(
+        H2("Process Details"),
+        P(f"Process ID: {process.id}"),
+        P(f"Created at: {process.created_at}"),
+        P(f"Status: {process.status.capitalize()}"),
+        P(f"Feedback received: {received} / {total_required}"),
+        P(f"Pending feedback requests: {pending}")
+    )
+    feedback_list = Ul(*[Li(
+        P(f"Feedback from: {fb.provider_id if fb.provider_id else 'Anonymous'}"),
+        P(f"Feedback: {fb.feedback_text}")
+    ) for fb in feedbacks]) if feedbacks else P("No feedback submitted yet.")
+    page_content = Div(details_section, H2("Feedback Submissions"), feedback_list)
+    return Titled("Process Details", page_content)
 
 # -------------
 # Start the App
