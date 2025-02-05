@@ -1,5 +1,7 @@
 from fasthtml.common import *
 from datetime import datetime, timedelta
+from fastcore.basics import patch
+
 
 
 # -------------------------
@@ -36,8 +38,14 @@ class FeedbackProcess:
     feedback_count: int
     feedback_report: Optional[str] = None  # filled_when_report_generated
 
-feedback_process_tb = db.create(FeedbackProcess, pk="id")
+@patch
+def __ft__(self: FeedbackProcess):
+    link = A(f"Feedback Process {self.id}", href= f'/feedback-process/{self.id}', id=f'process-{self.id}')   
+    status_str = "Complete" if self.feedback_report else "In Progress"
+    cts = (status_str, " - ", link)
+    return Li(*cts, id=f'process-{self.id}')
 
+feedback_process_tb = db.create(FeedbackProcess, pk="id")
 
 # FeedbackRequest table: stores requests to individuals
 @dataclass
