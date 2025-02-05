@@ -3,95 +3,60 @@ from fasthtml.common import *
 from datetime import datetime, timedelta
 import secrets, os
 import bcrypt
-
-# ----------------------
-# Configuration Settings
-# ----------------------
-from dotenv import load_dotenv
-load_dotenv()  # Load environment variables from a .env file
-
-# These configuration values are now sourced from environment variables with defaults given below.
-MIN_PEERS = int(os.getenv("MIN_PEERS", "3"))
-MIN_SUPERVISORS = int(os.getenv("MIN_SUPERVISORS", "1"))
-MAGIC_LINK_EXPIRY_DAYS = int(os.getenv("MAGIC_LINK_EXPIRY_DAYS", "14"))
-# Number of reports (people who report) defaults to 0
-NUMBER_OF_REPORTS = int(os.getenv("NUMBER_OF_REPORTS", "0"))
-FEEDBACK_QUALITIES = os.getenv("FEEDBACK_QUALITIES", "Communication,Leadership,Technical Skills,Teamwork,Problem Solving").split(",")
-
-# -------------------------
-# Database and Schema Setup
-# -------------------------
-db = database("data/feedback.db")
-# Users table: using email as unique identifier
-from dataclasses import dataclass
-from typing import Dict, List, Optional
-from llm_functions import process_feedback
-@dataclass
-class User:
-    id: str
-    email: str
-    role: str
-    company: str
-    team: str
-    created_at: datetime
-    pwd: str
-
-users = db.create(User, pk="email")  # Use email as primary key for simpler login
-
-# Feedback table: stores feedback submissions
-@dataclass
-class Feedback:
-    id: str
-    requestor_id: str
-    provider_id: str  # May be None for anonymous submissions
-    feedback_text: str
-    ratings: dict     # Expected to be a JSON-like dict for quality ratings
-    process_id: str    # UUID linking to FeedbackProcess table
-    created_at: datetime
-
-feedback_tb = db.create(Feedback, pk="id")
-
-# Themes table: stores extracted themes from feedback
-@dataclass
-class Theme:
-    id: str
-    feedback_id: str
-    theme: str
-    sentiment: str  # 'positive', 'negative', or 'neutral'
-    created_at: datetime
-
-themes_tb = db.create(Theme, pk="id")
-
-# FeedbackProcess table: tracks the overall feedback collection process
-@dataclass
-class FeedbackProcess:
-    id: str
-    user_id: str
-    created_at: datetime
-    min_required_peers: int
-    min_required_supervisors: int
-    min_required_reports: int
-    feedback_count: int
-    status: str  # 'collecting', 'ready', 'generated'
-
-feedback_process_tb = db.create(FeedbackProcess, pk="id")
-
-# FeedbackRequest table: stores feedback request tokens linked to a feedback process.
-@dataclass
-class FeedbackRequest:
-    token: str
-    email: str
-    process_id: Optional[str]  # Link back to FeedbackProcess; may be None for standalone requests.
-    expiry: datetime
-    feedback_text: Optional[str] = None  # Filled when feedback is submitted.
-    ratings: Optional[dict] = None       # Filled with rating scores when feedback is submitted.
+import logging
+from datetime import datetime
 
 
-feedback_request_tb = db.create(FeedbackRequest, pk="token")
+# Configure logging based on environment variable
+log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level),
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# ----------------------------------
-# Utility Functions and Business Logic
-# ----------------------------------
+from models import users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login
+from pages import dashboard_page, login_or_register_page,register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
+
+from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
+
+
+from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES
+
+from utils import beforeware
+from fastcore.basics import patch
+
+@patch
+def __ft__(self: FeedbackProcess):
+    link = AX(f"Feedback Process {self.id}", f'/feedback-process/{self.id}', 'current-process')
+    status_str = "Complete" if self.feedback_report else "In Progress"
+    cts = (status_str, " - ", link)
+    return Li(*cts, id=f'process-{self.id}')
+
+# --------------------
+# FastHTML App Setup
+# --------------------
+app, rt = fast_app(
+    before=beforeware,
+    hdrs=(
+        MarkdownJS(),  # Allows rendering markdown in feedback text, if needed.
+    ),
+    exception_handlers={HTTPException: lambda req, exc: Response(content="", status_code=exc.status_code, headers=exc.headers)}
+)
+
+# --------------------
+# Helper Functions
+# --------------------
+
+def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
+    """Generate a themed page with appropriate navigation bar based on auth status"""
+    return Container(
+        Title(page_title),
+        navigation_bar_logged_in if auth else navigation_bar_logged_out,
+        Div(page_body, id="main-content"),
+        footer_bar
+    )
+
 def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
     """
     Generates a unique magic link token, stores it with expiry in the FeedbackRequest table, and returns the link.
@@ -104,48 +69,106 @@ def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
         "email": email,
         "process_id": process_id,
         "expiry": expiry,
-        "feedback_text": None,
-        "ratings": None
     })
     return f"/feedback/submit/{token}"
 
-# ------------------------------
-# FastHTML Beforeware for Auth
-# ------------------------------
-def auth_before(req, sess):
-    """
-    Beforeware function to inject 'auth' from session into request scope.
-    Also attaches a filter on feedback_tb based on requestor_id.
-    """
+# -----------------------
+# static pages
+# -----------------------
+
+# this is your landing page - it should have some markdown, and a link to the key pages, as well as a login button
+
+@app.get("/")
+def get(req, sess):
+    # if the user is not logged in, show the static landing page
+    # if the user is logged in, redirect to dashboard
     auth = req.scope["auth"] = sess.get("auth", None)
+    logger.debug(f"Root path accessed with auth: {auth}")
     if not auth:
-        return RedirectResponse("/login", status_code=303)
-    # Limit feedback visibility to the authenticated user
-    feedback_tb.xtra(requestor_id=auth)
+        logger.debug("User not authenticated, redirecting to homepage")
+        return RedirectResponse("/homepage", status_code=303)
+    else:
+        logger.debug("User authenticated, redirecting to dashboard")
+        return RedirectResponse("/dashboard", status_code=303)
 
-beforeware = Beforeware(auth_before, skip=[r'/login', r'/register', r'/magic/.*', r'/feedback/submit/.*', r'/static/.*'])
+@app.get("/homepage")
+def get():
+    return generate_themed_page(landing_page)
 
-# --------------------
-# FastHTML App Setup
-# --------------------
-app, rt = fast_app(
-    before=beforeware,
-    hdrs=(
-        MarkdownJS(),  # Allows rendering markdown in feedback text, if needed.
-        Style(f":root {{ --min-peers: {MIN_PEERS}; --min-supervisors: {MIN_SUPERVISORS}; }}")
-    ),
-    exception_handlers={HTTPException: lambda req, exc: Response(content="", status_code=exc.status_code, headers=exc.headers)}
-)
+@app.get("/about")
+def get():
+    return about_page
+
+@app.get("/privacy-policy")
+def get():
+    return privacy_policy_page
 
 # -----------------------
-# Route: User Registration
+# User Registration and Login Pages
 # -----------------------
-@rt("/register")
-def post_register(email: str, role: str, company: str, team: str, pwd: str, sess):
+
+@app.get("/login-or-register")
+def get():
+
+    return login_or_register_page 
+
+@app.get("/login-form")
+def get():
+    return login_form
+
+@app.get("/registration-form")
+def get():
+    return register_form
+
+@app.post("/login")
+def post_login(login: Login, sess):
+    logger.debug(f"Login attempt for email: {login.email}")
+    try:
+        u = users[login.email]
+        logger.debug(f"User found: {login.email}")
+    except Exception as e:
+        logger.warning(f"Login failed - user not found: {login.email}")
+        return RedirectResponse("/login-form", status_code=303)
+    
+    if not bcrypt.checkpw(login.pwd.encode("utf-8"), u.pwd.encode("utf-8")):
+        logger.warning(f"Login failed - invalid password for user: {login.email}")
+        return RedirectResponse("/login-form", status_code=303)
+    
+    sess["auth"] = u.id
+    logger.info(f"User successfully logged in: {login.email}")
+    return RedirectResponse("/dashboard", status_code=303)
+
+@rt("/logout")
+def get_logout(sess):
     if "auth" in sess:
+        auth_id = sess["auth"]
         del sess["auth"]
+        logger.info(f"User logged out: {auth_id}")
+    return RedirectResponse("/", status_code=303)
+
+@app.get("/register")
+def get(req):
+    auth = req.scope.get("auth")
+    if auth:
+        logger.debug(f"Already logged in user ({auth}) accessing register page, redirecting to dashboard")
+        return RedirectResponse("/dashboard", status_code=303)
+    logger.debug("Serving registration form")
+    return register_form
+
+
+# -----------------------
+# Routes: User Registration
+# -----------------------
+@app.post("/register-new-user")
+def post_register(email: str, first_name:str, role: str, company: str, team: str, pwd: str, sess):
+    logger.debug(f"Registration attempt for email: {email}")
+    if "auth" in sess:
+        logger.debug("Clearing existing session auth")
+        del sess["auth"]
+    
     user_data = {
         "id": secrets.token_hex(16),
+        "first_name": first_name,
         "email": email,
         "role": role,
         "company": company,
@@ -155,471 +178,193 @@ def post_register(email: str, role: str, company: str, team: str, pwd: str, sess
     }
     try:
         u = users[email]
+        logger.warning(f"Registration failed - email already exists: {email}")
     except Exception:
         u = users.insert(user_data)
+        logger.info(f"New user registered: {email}")
+    
     sess["auth"] = u.id
-    raise HTTPException(status_code=303, headers={"Location": f"/magic/link?email={email}"})
-
-# -----------------------
-# Route: Generate Magic Link (Feedback Request)
-# -----------------------
-@rt("/magic/link")
-def get_magic(email: str):
-    link = generate_magic_link(email)
-    return Titled(
-        title="Magic Link Generated",
-        content=[
-            P("Share this Feedback Request link with your feedback providers:"),
-            P(link)
-        ]
-    )
-
-@rt("/magic/regenerate")
-def regenerate_magic_link(email: str, process_id: str):
-    new_link = generate_magic_link(email, process_id)
-    # Return a script fragment that copies the new magic link to clipboard and displays a confirmation message,
-    # without redirecting the user.
-    return NotStr(f"<script>navigator.clipboard.writeText('{new_link}');</script><span>Magic link copied to clipboard!</span>")
-
-# -------------------------------
-# Route: Feedback Submission (GET)
-# -------------------------------
-@rt("/feedback/submit/{token}")
-def get_feedback_submit(token: str):
-    try:
-        record = feedback_request_tb[token]
-    except Exception:
-        record = None
-    # Convert expiry to datetime if necessary
-    if record:
-        exp = record.expiry if isinstance(record.expiry, datetime) else datetime.fromisoformat(record.expiry)
-    else:
-        exp = None
-    if record and exp and exp > datetime.now():
-        form = Form(
-            Group(
-                *[Group(Label(q), Input(type="range", min=1, max=8, value=4, id=f"rating_{q.lower()}"))
-                  for q in FEEDBACK_QUALITIES],
-                Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True)
-            ),
-            Button("Submit Feedback", type="submit"),
-            hx_post="/feedback/submit",
-            hx_target="#feedback-status"
-        )
-        return Titled("Submit Feedback", form)
-    else:
-        return Titled(
-            title="Invalid or Expired Link",
-            content=P("This Feedback Request link is invalid or has expired.")
-        )
-
-# -------------------------------
-# Route: Feedback Submission (POST)
-# -------------------------------
-@rt("/feedback/submit")
-def post_feedback(feedback_text: str, sess, **kwargs):
-    """Stores a submitted feedback under a FeedbackProcess."""
-    ratings = {}
-    for quality in FEEDBACK_QUALITIES:
-        rating_key = f"rating_{quality.lower()}"
-        if rating_key in kwargs:
-            ratings[quality] = int(kwargs[rating_key])
-    processes = feedback_process_tb("user_id=? AND status=? ORDER BY created_at DESC LIMIT 1", (sess.get("auth"), 'collecting'))
-    if not processes:
-        return Titled(
-            title="No Active Feedback Process",
-            content=P("There is no active feedback collection process. Please create a new process first.")
-        )
-    process = processes[0]
-    feedback_data = {
-        "id": secrets.token_hex(16),
-        "requestor_id": sess.get("auth"),
-        "provider_id": None,
-        "feedback_text": feedback_text,
-        "ratings": ratings,
-        "process_id": process.id,
-        "created_at": datetime.now()
-    }
-    feedback = feedback_tb.insert(feedback_data)
-    new_count = process.feedback_count + 1
-    update_data = {"feedback_count": new_count}
-    total_required = process.min_required_peers + process.min_required_supervisors + process.min_required_reports
-    if new_count >= total_required:
-        update_data["status"] = "ready"
-    feedback_process_tb.update(update_data, process.id)
-    themes_result = process_feedback(feedback_text)
-    if themes_result:
-        for sentiment, theme_list in themes_result.items():
-            sentiment_type = sentiment.replace('_themes', '')
-            for theme in theme_list:
-                theme_data = {
-                    "id": secrets.token_hex(16),
-                    "feedback_id": feedback.id,
-                    "theme": theme,
-                    "sentiment": sentiment_type,
-                    "created_at": datetime.now()
-                }
-                themes_tb.insert(theme_data)
-    return Titled(
-        title="Feedback Submitted",
-        content=P("Thank you for your feedback! It has been processed and themes have been extracted.")
-    )
-
-# ------------------------------
-# Route: Feedback Report Generation (Feedback Report)
-# ------------------------------
-@rt("/feedback/report/{process_id}")
-def get_report(process_id: str, auth):
-    try:
-        process = feedback_process_tb[process_id]
-    except Exception:
-        return Titled("Process Not Found", P("No feedback process found for the given ID."))
-    if process.user_id != auth:
-        return Titled(
-            title="Access Denied",
-            content=P("You are not allowed to view this Feedback Report.")
-        )
-    return Titled(
-            title="Feedback Report",
-            content=P("Feedback Report contents would be generated here.")
-        )
-
-# ------------------------------
-# Basic Login and Logout Routes
-# ------------------------------
-@rt("/login")
-def get_login():
-    login_form = Form(
-        H2("Login to Feedback2Me"),
-        P("Enter your credentials to access your feedback dashboard.", style="margin-bottom: 2rem;"),
-        Group(
-            Input(name="email", type="email", placeholder="Email", required=True),
-            Input(name="pwd", type="password", placeholder="Password", required=True)
-        ),
-        Button("Login", type="submit", cls="primary"),
-        action="/login", method="post",
-        style="margin-bottom: 2rem;"
-    )
-    register_form = Form(
-        H2("New to Feedback2Me?"),
-        P("Create an account to start collecting feedback.", style="margin-bottom: 2rem;"),
-        Group(
-            Input(name="email", type="email", placeholder="Email", required=True),
-            Input(name="role", type="text", placeholder="Role (e.g. Software Engineer)", required=True),
-            Input(name="company", type="text", placeholder="Company", required=True),
-            Input(name="team", type="text", placeholder="Team", required=True),
-            Input(name="pwd", type="password", placeholder="Password", required=True)
-        ),
-        Button("Register", type="submit", cls="secondary"),
-        action="/register", method="post",
-        style="margin-bottom: 2rem;"
-    )
-    styles = Style("""
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        form {
-            background: var(--pico-card-background-color);
-            padding: 2rem;
-            border-radius: 8px;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h2 {
-            margin-top: 0;
-            color: var(--pico-color-primary);
-        }
-        .primary {
-            background: var(--pico-color-primary);
-            color: white;
-        }
-        .secondary {
-            background: var(--pico-color-secondary);
-            color: white;
-        }
-        .big-button {
-            display: inline-block;
-            padding: 1rem 2rem;
-            font-size: 1.5rem;
-            margin-bottom: 2rem;
-            background: var(--pico-color-primary);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .big-button:hover {
-            background: var(--pico-color-primary-hover);
-        }
-    """)
-    return Title("Login"), styles, Container(login_form, register_form)
-
-@dataclass
-class Login:
-    email: str
-    pwd: str
-
-@rt("/login")
-def post_login(login: Login, sess):
-    try:
-        u = users[login.email]
-    except Exception:
-        return RedirectResponse("/login", status_code=303)
-    if not bcrypt.checkpw(login.pwd.encode("utf-8"), u.pwd.encode("utf-8")):
-        return RedirectResponse("/login", status_code=303)
-    sess["auth"] = u.id
+    logger.debug(f"Session auth set for new user: {u.id}")
     return RedirectResponse("/", status_code=303)
 
-@rt("/logout")
-def get_logout(sess):
-    if "auth" in sess:
-        del sess["auth"]
-    return RedirectResponse("/login", status_code=303)
+# -----------------------
+# Routes: Dashboard
+# -----------------------
 
-# ------------------------------
-# Route: Home Dashboard
-# ------------------------------
-@rt("/")
-def get_home(req):
-    if not req.scope.get("auth"):
-        raise HTTPException(status_code=303, headers={"Location": "/login"})
+@app.get("/dashboard")
+def get(req):
     auth = req.scope.get("auth")
-    top_bar = Div(
-        A("Log out", href="/logout", cls="top-link"),
-        cls="top-bar",
-        style="padding: 1rem; background-color: #f0f0f0; text-align: right;"
-    )
-    processes_collecting = feedback_process_tb("user_id=? AND status=?", (auth, 'collecting'))
-    processes_ready = feedback_process_tb("user_id=? AND status=?", (auth, 'ready'))
-    processes_generated = feedback_process_tb("user_id=? AND status=?", (auth, 'generated'))
-    def process_item(process):
-        status_cls = {
-            'collecting': 'yellow',
-            'ready': 'green',
-            'generated': 'blue'
-        }.get(process.status, '')
-        created_at = process.created_at
-        if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-        total_required = process.min_required_peers + process.min_required_supervisors + process.min_required_reports
-        return Li(
-            Div(
-                H3(f"Process from {created_at.strftime('%B %d, %Y')}"),
-                P(f"Status: ", Span(process.status.title(), cls=f"pill {status_cls}")),
-                P(f"Feedback received: {process.feedback_count} / {total_required}"),
-                A("View Details", href=f"/feedback/process/{process.id}/status", cls="button"),
-                cls="report-item"
-            )
-        )
-    main_content = Div(
-        H1("Your Feedback Dashboard", style="font-size: 2.5rem; margin-bottom: 1rem;"),
-        A("Start a new feedback process", href="/feedback/process/new", cls="big-button"),
+    logger.debug(f"Dashboard accessed by user: {auth}")
+    
+    # Get user's feedback processes
+    processes = feedback_process_tb("user_id=?", (auth,))
+    logger.debug(f"Found {len(processes)} feedback processes")
+    
+    active_html = []
+    completed_html = []
+    for p in processes:
+        if p.feedback_report:
+            completed_html.append(p)
+        else:
+            active_html.append(p)
+
+    dashboard_page_active = Container(
+        H2("Your Feedback Dashboard"),
         Div(
-            H2("Collecting Feedback Process", style="color: var(--pico-color-yellow)"),
-            (Ul(*[process_item(p) for p in processes_collecting], id="collecting-ul") if processes_collecting else Ul(id="collecting-ul")),
-            H2("Ready for Feedback Report", style="color: var(--pico-color-green)"),
-            (Ul([process_item(p) for p in processes_ready]) if processes_ready else P("No processes ready for report generation")),
-            H2("Generated Feedback Reports", style="color: var(--pico-color-blue)"),
-            (Ul([process_item(p) for p in processes_generated]) if processes_generated else P("No generated reports")),
-            id="reports-list",
-            cls="reports-section"
+            H3("Active Feedback Collection"),
+            *active_html or P("No active feedback collection processes.", cls="text-muted"),
+            Button("Start New Feedback Collection", hx_get="/start-new-feedback-process", hx_target="#main-content", hx_swap="innerHTML")
         ),
-        cls="main-content",
-        style="text-align: left; padding: 2rem;"
+        Div(
+            H3("Ready for Review"),
+            P("No feedback ready for review.", cls="text-muted")
+        ),
+        Div(
+            H3("Completed Reports"),
+            completed_html or P("No completed feedback reports.", cls="text-muted")
+        )
     )
-    styles = Style("""
-        .report-item { 
-            border: 1px solid var(--pico-color-gray); 
-            padding: 1rem; 
-            margin-bottom: 1rem; 
-            border-radius: 8px;
-        }
-        .pill {
-            padding: 0.2rem 0.8rem;
-            border-radius: 1rem;
-            font-size: 0.9rem;
-            font-weight: bold;
-        }
-        .pill.yellow { background: var(--pico-color-yellow); color: black; }
-        .pill.green { background: var(--pico-color-green); color: white; }
-        .pill.blue { background: var(--pico-color-blue); color: white; }
-    """)
-    container = Container(top_bar, main_content, id="page")
-    return Title("Feedback Dashboard"), styles, container
+    return generate_themed_page(dashboard_page_active, auth=auth, page_title="Your Dashboard")
 
-# ------------------------------
-# Route: Create New Feedback Process
-# ------------------------------
-@rt("/feedback/process/new")
-def get_process_new():
-    """Display the form to create a new feedback process"""
+
+# -----------------------
+# Routes: New Feedback Process
+# -----------------------
+
+@app.get("/start-new-feedback-process")
+def get_new_feedback():
     form = Form(
-        H2("Start a New Feedback Process"),
-        P(f"You'll need at least {MIN_PEERS} peers and {MIN_SUPERVISORS} supervisor to begin collecting feedback."),
-        Fieldset(
-            Legend(f"Peers (minimum {MIN_PEERS} required)"),
-            Input(name="peers", type="text", placeholder="Enter peer emails separated by commas", required=True)
+        Div(
+            H2("New Feedback Process"),
+            P("Enter emails (one per line) for each category:")
         ),
-        Fieldset(
-            Legend(f"Supervisors (minimum {MIN_SUPERVISORS} required)"),
-            Input(name="supervisors", type="text", placeholder="Enter supervisor emails separated by commas", required=True)
+        Div(
+            H3("Peers"),
+            Textarea(name="peers_emails", placeholder="Enter peer emails, one per line", rows=3)
         ),
-        Fieldset(
-            Legend("Subordinates (optional)"),
-            Input(name="subordinates", type="text", placeholder="Enter subordinate emails separated by commas")
+        Div(
+            H3("Supervisors"),
+            Textarea(name="supervisors_emails", placeholder="Enter supervisor emails, one per line", rows=3)
         ),
-        Button("Create Feedback Process", type="submit"),
-        action="/feedback/process/create",
-        method="post"
+        Div(
+            H3("Reports"),
+            Textarea(name="reports_emails", placeholder="Enter report emails, one per line", rows=3)
+        ),
+        Div(
+            H3("Select Qualities to be Graded On"),
+            *[Div(
+                Input(name=f"quality_{q}", type="checkbox", value=q),
+                Label(q)
+              ) for q in FEEDBACK_QUALITIES]
+        ),
+        Button("Begin collecting feedback", type="submit", cls="primary")
+        , action="/create-new-feedback-process", method="post"
     )
-    return Titled("New Feedback Process", Container(form))
 
-@rt("/feedback/process/create")
-def post_process_new(auth, peers: str, supervisors: str, subordinates: str = ""):
-    """Create a new feedback process and generate feedback requests"""
-    # Split and validate the email lists
-    peer_list = [x.strip() for x in peers.split(",") if x.strip()]
-    supervisor_list = [x.strip() for x in supervisors.split(",") if x.strip()]
-    subordinate_list = [x.strip() for x in subordinates.split(",") if x.strip()]
-    
-    errors = []
-    if len(peer_list) < MIN_PEERS:
-        errors.append(f"At least {MIN_PEERS} peers are required. You provided {len(peer_list)}.")
-    if len(supervisor_list) < MIN_SUPERVISORS:
-        errors.append(f"At least {MIN_SUPERVISORS} supervisor is required. You provided {len(supervisor_list)}.")
-    
-    if errors:
-        return Titled("Error Creating Process", Container(
-            H2("Cannot Create Feedback Process"),
-            P(" ".join(errors)),
-            A("Try Again", href="/feedback/process/new", cls="button")
-        ))
-    
-    # Create the feedback process
+    return Titled("Start New Feedback Process", form)
+
+
+@app.post("/create-new-feedback-process")
+def create_new_feedback_process(peers_emails: str, supervisors_emails: str, reports_emails: str, sess, data: dict):
+    logger.debug("create_new_feedback_process called with:")
+    logger.debug(f"peers_emails: {peers_emails!r}")
+    logger.debug(f"supervisors_emails: {supervisors_emails!r}")
+    logger.debug(f"reports_emails: {reports_emails!r}")
+    logger.debug(f"Additional form data: {data!r}")
+    user_id = sess.get("auth")
+    peers = [line.strip() for line in peers_emails.splitlines() if line.strip()]
+    supervisors = [line.strip() for line in supervisors_emails.splitlines() if line.strip()]
+    reports = [line.strip() for line in reports_emails.splitlines() if line.strip()]
+    selected_qualities = [q for q in FEEDBACK_QUALITIES if data.get(f"quality_{q}")]
     process_data = {
-        "id": secrets.token_hex(16),
-        "user_id": auth,
+        "id": secrets.token_hex(8),
+        "user_id": user_id,
         "created_at": datetime.now(),
         "min_required_peers": MIN_PEERS,
         "min_required_supervisors": MIN_SUPERVISORS,
-        "min_required_reports": NUMBER_OF_REPORTS,
+        "min_required_reports": MIN_REPORTS,
+        "qualities": selected_qualities,
         "feedback_count": 0,
-        "status": "collecting"
+        "feedback_report": None
     }
-    process = feedback_process_tb.insert(process_data)
-    
-    # Generate magic links (feedback requests) for each contact,
-    # linking them to the newly created process.
-    magic_links = []
-    for email in peer_list + supervisor_list + subordinate_list:
-        link = generate_magic_link(email, process.id)
-        magic_links.append((email, link))
-    
-    # Redirect the user to the process detail page (status view)
-    return RedirectResponse(f"/feedback/process/{process.id}/status", status_code=303)
+    fp = feedback_process_tb.insert(process_data)
+    # Create feedback requests for each role.
+    for email in peers:
+        link = generate_magic_link(email, process_id=process_data["id"])
+        token = link.replace("/feedback/submit/", "")
+        feedback_request_tb.update({"user_type": "peer"}, token=token)
+    for email in supervisors:
+        link = generate_magic_link(email, process_id=process_data["id"])
+        token = link.replace("/feedback/submit/", "")
+        feedback_request_tb.update({"user_type": "supervisor"}, token=token)
+    for email in reports:
+        link = generate_magic_link(email, process_id=process_data["id"])
+        token = link.replace("/feedback/submit/", "")
+        feedback_request_tb.update({"user_type": "report"}, token=token)
+    return RedirectResponse("/dashboard", status_code=303)
 
-# ------------------------------
-# Route: Feedback Report Generation (Feedback Report)
-# ------------------------------
-@rt("/feedback/report/{process_id}/generate")
-def post_feedback_report_generate(process_id: str, auth):
-    try:
-        process = feedback_process_tb[process_id]
-        if process.user_id != auth:
-            return Titled(
-                title="Access Denied",
-                content=P("You are not allowed to generate this Feedback Report.")
-            )
-        if process.status != 'ready':
-            return Titled(
-                title="Cannot Generate Feedback Report",
-                content=P("This process cannot generate a report yet. Please wait until enough feedback is collected.")
-            )
-        feedbacks = feedback_tb("process_id=?", (process_id,))
-        all_themes = []
-        for feedback in feedbacks:
-            themes = themes_tb("feedback_id=?", (feedback.id,))
-            all_themes.extend(themes)
-        theme_groups = {
-            'positive': [],
-            'negative': [],
-            'neutral': []
-        }
-        for theme in all_themes:
-            theme_groups[theme.sentiment].append(theme.theme)
-        all_scores = {}
-        for feedback in feedbacks:
-            for quality, score in feedback.ratings.items():
-                if quality not in all_scores:
-                    all_scores[quality] = []
-                all_scores[quality].append(score)
-        avg_scores = { quality: sum(scores) / len(scores) for quality, scores in all_scores.items() }
-        content = [
-            H2("Feedback Summary"),
-            H3("Scores", style="color: var(--pico-color-blue)"),
-            Ul([Li(f"{quality}: {score:.1f}/8") for quality, score in avg_scores.items()]),
-            H3("Key Strengths", style="color: var(--pico-color-green)"),
-            Ul([Li(theme) for theme in theme_groups['positive']]) if theme_groups['positive'] else P("No specific strengths highlighted"),
-            H3("Areas for Growth", style="color: var(--pico-color-yellow)"),
-            Ul([Li(theme) for theme in theme_groups['negative']]) if theme_groups['negative'] else P("No specific areas for growth highlighted"),
-            H3("Other Observations", style="color: var(--pico-color-gray)"),
-            Ul([Li(theme) for theme in theme_groups['neutral']]) if theme_groups['neutral'] else P("No neutral observations")
-        ]
-        feedback_process_tb.update({"status": "generated"}, process_id)
-        return Div(*content, id="report-content")
-    except Exception as e:
-        return Titled(
-            title="Error Generating Feedback Report",
-            content=P(f"An error occurred while generating the report: {str(e)}")
-        )
+# -----------------------
+# Routes: Existing Feedback Process
+# -----------------------
 
-@rt("/feedback/process/{process_id}/status")
-def get_process_status(process_id: str, auth):
-    try:
-        process = feedback_process_tb[process_id]
-    except Exception:
-        return Titled("Process Not Found", P("No feedback process found for the given ID."))
-    if process.user_id != auth:
-        return Titled("Access Denied", P("You are not allowed to view this process."))
-    feedbacks = feedback_tb("process_id=?", (process_id,))
-    requests = feedback_request_tb("process_id=?", (process_id,))
-    total_required = process.min_required_peers + process.min_required_supervisors + process.min_required_reports
-    received = process.feedback_count
-    # Compute counts from feedback requests
-    requests_generated = len(requests) if requests else 0
-    completed_requests = sum(1 for req in requests if req.feedback_text)
-    pending_requests = requests_generated - completed_requests
-    details_section = Div(
-        H2("Process Details"),
-        P(f"Process ID: {process.id}"),
-        P(f"Created at: {process.created_at}"),
-        P(f"Status: {process.status.capitalize()}"),
-        P(f"Feedback submissions received: {received}"),
-        P(f"Feedback requests generated: {requests_generated}"),
-        P(f"Pending feedback requests: {pending_requests}")
+@app.get("/feedback-process/{process_id}")
+def get_report_status_page(process_id):
+    # this should get the page for a specific open feedback process
+    # this should show you the detail for any specific process.  At the very top it should show you the status
+    # if that status is complete, it should have a link to generate a full report
+    # underneath that it should show a list of each feedback request, and the status of each, and the full magic link to send 
+    # if  the report exists, it should be at the bottom
+    pass
+
+def create_feedback_report_input(process_id):
+    # this should query our database, and retrieve the key facts for the feedback report, and output them ready for the LLM to process
+    # 1. For each quality, generate the average score and variance
+    # 2. Retrieve a list of positive, negative and neutral themes
+    # 3. Combine those together into a block of text
+    pass
+
+@app.post("/feedback-process/{process_id}/generate_completed_feedback_report")
+def create_feeback_report(process_id):
+    # this should be the route to generate our final feedback report
+    feedback_report_input = create_feedback_report_input(process_id)
+    feedback_report = generate_completed_feedback_report(feedback_report_input)
+
+    # once we have the report, we should save it to the database
+    pass
+
+# -------------------------------
+# Route: Feedback Submission
+# -------------------------------
+@app.get("/new-feedback-form/{process_id}")
+def get_feedback_form(token: str):
+    # this is a page for external users to submit feedback. It should show a bit of intro text, and then it should shown the form and a submit button
+    # once the feedback is submitted and saved to DB, take them to the thank you page.
+    introduction_text = "{first_name} has asked for your feedback"
+    
+    form = Form(
+        Group(
+            *[Group(Label(q), Input(type="range", min=1, max=8, value=4, id=f"rating_{q.lower()}"))
+              for q in FEEDBACK_QUALITIES],
+            Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True)
+        ),
+        Button("Submit Feedback", type="submit"),
+        hx_post="/feedback/submit",
+        hx_target="#feedback-status"
     )
-    if requests:
-        requests_list = Ul(*[
-            Li(
-                P(f"Provider Email: {req.email}"),
-                P(f"Request Status: {'Completed' if req.feedback_text else 'Pending'}"),
-                P(f"Magic Link: /feedback/submit/{req.token}", cls="magic-link")
-            )
-            for req in requests
-        ])
-    else:
-        requests_list = P("No feedback requests available.")
-    if feedbacks:
-        feedback_list = Ul(*[Li(
-            P(f"Feedback from: {fb.provider_id if fb.provider_id else 'Anonymous'}"),
-            P(f"Feedback: {fb.feedback_text}")
-        ) for fb in feedbacks])
-    else:
-        feedback_list = P("No feedback submitted yet.")
-    page_content = Div(details_section, H2("Feedback Requests"), requests_list, H2("Feedback Submissions"), feedback_list)
-    return Titled("Process Details", page_content)
+    return Titled("Submit Feedback", form)
+
+
+@app.get("/feedback-submitted")
+def get_feedback_submitted():
+    return Titled("Feedback Submitted", P("Thank you for your feedback! It has been submitted successfully. if You'd like to do this to, go to ..."))
+
+@app.post("/new-feedback-form/{process_id}/submit")
+def submit_feedback_form(token: str, feedback_text: str, **kwargs):
+    # first it takes the form data, and stores it in the database
+    # then we pass it to the LLM to generate themes
+    feedback_themes = convert_feedback_text_to_themes(feedback_text)
+    # then we save the themes to the database
+    pass
 
 # -------------
 # Start the App

@@ -55,7 +55,7 @@ def create_feedback_model():
         system_instruction="You are a helpful assistant who helps collect and anonymise 360 feedback requests.",
     )
 
-def process_feedback(feedback_text: str) -> Optional[Dict[str, List[str]]]:
+def convert_feedback_text_to_themes(feedback_text: str) -> Optional[Dict[str, List[str]]]:
     """
     Process feedback text using Gemini to extract themes and sentiments.
     
@@ -110,3 +110,9 @@ Feedback:
     except Exception as e:
         print(f"Error processing feedback: {str(e)}")
         return None
+
+def generate_completed_feedback_report():
+    """Takes a list of scores and feedback themes, and generates a final report."""
+
+    # TODO: Implement this function
+    pass
