@@ -111,8 +111,53 @@ Feedback:
         print(f"Error processing feedback: {str(e)}")
         return None
 
-def generate_completed_feedback_report():
-    """Takes a list of scores and feedback themes, and generates a final report."""
+def generate_completed_feedback_report(feedback_input: str) -> str:
+    """
+    Takes formatted feedback data and generates a comprehensive feedback report using Gemini.
+    
+    Args:
+        feedback_input: Formatted string containing quality ratings and themed feedback
+        
+    Returns:
+        A markdown-formatted feedback report string
+    """
+    try:
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash-8b",
+            generation_config={
+                "temperature": 0.7,
+                "top_p": 0.8,
+                "top_k": 40,
+                "max_output_tokens": 8192,
+            }
+        )
 
-    # TODO: Implement this function
-    pass
+        prompt = f"""You are a professional feedback report writer. Your task is to analyze the feedback data below and create a comprehensive, well-structured feedback report in markdown format.
+
+The report should:
+1. Start with an executive summary highlighting key strengths and areas for improvement
+2. Include detailed analysis of the quality ratings, explaining what they mean
+3. Discuss the identified themes, grouping related feedback together
+4. Provide actionable recommendations based on the feedback
+5. Use a professional, constructive tone throughout
+6. Format everything in markdown for easy reading
+
+Here is the feedback data to analyze:
+
+{feedback_input}
+
+Please generate a comprehensive feedback report that is:
+- Well-structured with clear sections
+- Written in a professional tone
+- Balanced between strengths and areas for improvement
+- Focused on actionable insights
+- Formatted in markdown with appropriate headers and bullet points"""
+
+        chat = model.start_chat(history=[])
+        response = chat.send_message(prompt)
+        
+        return response.text
+        
+    except Exception as e:
+        print(f"Error generating feedback report: {str(e)}")
+        return "Error: Unable to generate feedback report. Please try again later."

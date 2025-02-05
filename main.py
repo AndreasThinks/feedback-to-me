@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from models import users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login
+from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login
 from pages import dashboard_page, login_or_register_page,register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
@@ -24,14 +24,7 @@ from llm_functions import convert_feedback_text_to_themes, generate_completed_fe
 from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES
 
 from utils import beforeware
-from fastcore.basics import patch
 
-@patch
-def __ft__(self: FeedbackProcess):
-    link = AX(f"Feedback Process {self.id}", f'/feedback-process/{self.id}', 'current-process')
-    status_str = "Complete" if self.feedback_report else "In Progress"
-    cts = (status_str, " - ", link)
-    return Li(*cts, id=f'process-{self.id}')
 
 # --------------------
 # FastHTML App Setup
@@ -70,7 +63,7 @@ def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
         "process_id": process_id,
         "expiry": expiry,
     })
-    return f"/feedback/submit/{token}"
+    return uri("new-feedback-form", token=token)
 
 # -----------------------
 # static pages
@@ -308,35 +301,214 @@ def create_new_feedback_process(peers_emails: str, supervisors_emails: str, repo
 # -----------------------
 
 @app.get("/feedback-process/{process_id}")
-def get_report_status_page(process_id):
-    # this should get the page for a specific open feedback process
-    # this should show you the detail for any specific process.  At the very top it should show you the status
-    # if that status is complete, it should have a link to generate a full report
-    # underneath that it should show a list of each feedback request, and the status of each, and the full magic link to send 
-    # if  the report exists, it should be at the bottom
-    pass
+def get_report_status_page(process_id : str):
+    # Get the feedback process
+    try:
+        process = feedback_process_tb[process_id]
+    except Exception as e:
+        logger.warning(f"Feedback process not found: {process_id}")
+        return RedirectResponse("/dashboard", status_code=303)
+    
+    # Get all feedback requests for this process
+    requests = feedback_request_tb("process_id=?", (process_id,))
+    
+    # Get all feedback submissions for this process
+    submissions = feedback_submission_tb("process_id=?", (process_id,))
+    
+    # Count submissions by type
+    submission_counts = {
+        "peer": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "peer"]),
+        "supervisor": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "supervisor"]),
+        "report": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "report"])
+    }
+    
+    # Check if we have enough submissions to generate a report
+    can_generate_report = (
+        submission_counts["peer"] >= process.min_required_peers and
+        submission_counts["supervisor"] >= process.min_required_supervisors and
+        submission_counts["report"] >= process.min_required_reports and
+        not process.feedback_report  # Only if report doesn't exist yet
+    )
+    
+    # Create status sections
+    status_section = Article(
+        H2("Feedback Process Status"),
+        P(f"Process ID: {process.id}"),
+        P(f"Created: {process.created_at}"),
+        P(f"Status: {'Complete' if process.feedback_report else 'In Progress'}"),
+        Div(
+            H3("Progress"),
+            P(f"Peers: {submission_counts['peer']}/{process.min_required_peers}"),
+            P(f"Supervisors: {submission_counts['supervisor']}/{process.min_required_supervisors}"),
+            P(f"Reports: {submission_counts['report']}/{process.min_required_reports}")
+        )
+    )
+    
+    # Create requests section showing each request and its status
+    requests_list = []
+    for req in requests:
+        # Find matching submission if it exists
+        submission = next((s for s in submissions if s.requestor_id == req.token), None)
+        
+        requests_list.append(
+            Article(
+                H4(f"{req.user_type.title()} Feedback Request"),
+                P(f"Email: {req.email}"),
+                P(f"Status: {'Submitted' if submission else 'Pending'}"),
+                P("Magic Link: ",
+                  A("Click to open feedback form", link=uri("new-feedback-form", process_id=req.token)),
+                  " ",
+                  Button("Copy", onclick=f"navigator.clipboard.writeText('{uri('new-feedback-form', process_id=req.token)}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }});")
+                ),
+                cls=f"request-{req.user_type}"
+            )
+        )
+    
+    requests_section = Article(
+        H3("Feedback Requests"),
+        *requests_list
+    )
+    
+    # Add report generation button if eligible
+    action_section = Div()
+    if can_generate_report:
+        action_section = Div(
+            Button(
+                "Generate Feedback Report",
+                hx_post=f"/feedback-process/{process_id}/generate_completed_feedback_report",
+                hx_target="#report-section"
+            )
+        )
+    
+    # Show existing report if it exists
+    report_section = Div(id="report-section")
+    if process.feedback_report:
+        report_section = Article(
+            H3("Feedback Report"),
+            Div(process.feedback_report, cls="markdown"),
+            id="report-section"
+        )
+    
+    return Titled(
+        f"Feedback Process {process_id}",
+        Container(
+            status_section,
+            requests_section,
+            action_section,
+            report_section
+        )
+    )
 
 def create_feedback_report_input(process_id):
-    # this should query our database, and retrieve the key facts for the feedback report, and output them ready for the LLM to process
-    # 1. For each quality, generate the average score and variance
-    # 2. Retrieve a list of positive, negative and neutral themes
-    # 3. Combine those together into a block of text
-    pass
+    # Get the feedback process
+    process = feedback_process_tb[process_id]
+    
+    # Get all submissions for this process
+    submissions = feedback_submission_tb("process_id=?", (process_id,))
+    
+    # Calculate statistics for each quality
+    quality_stats = {}
+    for quality in process.qualities:
+        ratings = [s.ratings.get(quality) for s in submissions if quality in s.ratings]
+        if ratings:
+            avg = sum(ratings) / len(ratings)
+            # Calculate variance
+            variance = sum((r - avg) ** 2 for r in ratings) / len(ratings)
+            quality_stats[quality] = {
+                "average": round(avg, 2),
+                "variance": round(variance, 2),
+                "count": len(ratings)
+            }
+    
+    # Get all themes for this process's feedback
+    themes = feedback_themes_tb("feedback_id IN (SELECT id FROM feedback_submission WHERE process_id=?)", (process_id,))
+    
+    # Group themes by sentiment
+    themed_feedback = {
+        "positive": [t.theme for t in themes if t.sentiment == "positive"],
+        "negative": [t.theme for t in themes if t.sentiment == "negative"],
+        "neutral": [t.theme for t in themes if t.sentiment == "neutral"]
+    }
+    
+    # Format the input for the LLM
+    report_input = f"""Feedback Report Summary for Process {process_id}
+
+Quality Ratings:
+{'-' * 40}"""
+
+    for quality, stats in quality_stats.items():
+        report_input += f"""
+{quality}:
+- Average Rating: {stats['average']}
+- Rating Variance: {stats['variance']}
+- Number of Ratings: {stats['count']}"""
+
+    report_input += f"""
+
+Feedback Themes:
+{'-' * 40}
+
+Positive Themes:
+{chr(10).join('- ' + theme for theme in themed_feedback['positive'])}
+
+Areas for Improvement:
+{chr(10).join('- ' + theme for theme in themed_feedback['negative'])}
+
+Neutral Observations:
+{chr(10).join('- ' + theme for theme in themed_feedback['neutral'])}
+
+Summary Statistics:
+- Total Submissions: {len(submissions)}
+- Total Themes Identified: {len(themes)}
+"""
+    
+    return report_input
 
 @app.post("/feedback-process/{process_id}/generate_completed_feedback_report")
 def create_feeback_report(process_id):
-    # this should be the route to generate our final feedback report
-    feedback_report_input = create_feedback_report_input(process_id)
-    feedback_report = generate_completed_feedback_report(feedback_report_input)
-
-    # once we have the report, we should save it to the database
-    pass
+    try:
+        # Get the process to verify it exists and check status
+        process = feedback_process_tb[process_id]
+        
+        # Verify we have enough submissions
+        submissions = feedback_submission_tb("process_id=?", (process_id,))
+        submission_counts = {
+            "peer": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "peer"]),
+            "supervisor": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "supervisor"]),
+            "report": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "report"])
+        }
+        
+        if (submission_counts["peer"] < process.min_required_peers or
+            submission_counts["supervisor"] < process.min_required_supervisors or
+            submission_counts["report"] < process.min_required_reports):
+            logger.warning(f"Attempted to generate report without sufficient feedback for process: {process_id}")
+            return "Not enough feedback submissions to generate report", 400
+        
+        # Generate the report input
+        feedback_report_input = create_feedback_report_input(process_id)
+        
+        # Generate the report using the LLM
+        feedback_report = generate_completed_feedback_report(feedback_report_input)
+        
+        # Save the report to the database
+        feedback_process_tb.update({"feedback_report": feedback_report}, process_id)
+        
+        # Return the report section for HTMX to update
+        return Article(
+            H3("Feedback Report"),
+            Div(feedback_report, cls="markdown"),
+            id="report-section"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating feedback report for process {process_id}: {str(e)}")
+        return "Error generating feedback report", 500
 
 # -------------------------------
 # Route: Feedback Submission
 # -------------------------------
-@app.get("/new-feedback-form/{process_id}")
-def get_feedback_form(token: str):
+@app.get("/new-feedback-form/{process_id}", name="new-feedback-form")
+def get_feedback_form(process_id: str):
     # this is a page for external users to submit feedback. It should show a bit of intro text, and then it should shown the form and a submit button
     # once the feedback is submitted and saved to DB, take them to the thank you page.
     introduction_text = "{first_name} has asked for your feedback"
@@ -348,7 +520,7 @@ def get_feedback_form(token: str):
             Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True)
         ),
         Button("Submit Feedback", type="submit"),
-        hx_post="/feedback/submit",
+        hx_post="/new-feedback-form/{process_id}/submit",
         hx_target="#feedback-status"
     )
     return Titled("Submit Feedback", form)
@@ -359,12 +531,62 @@ def get_feedback_submitted():
     return Titled("Feedback Submitted", P("Thank you for your feedback! It has been submitted successfully. if You'd like to do this to, go to ..."))
 
 @app.post("/new-feedback-form/{process_id}/submit")
-def submit_feedback_form(token: str, feedback_text: str, **kwargs):
-    # first it takes the form data, and stores it in the database
-    # then we pass it to the LLM to generate themes
-    feedback_themes = convert_feedback_text_to_themes(feedback_text)
-    # then we save the themes to the database
-    pass
+def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
+    try:
+        # Get the feedback request to verify token and get process_id
+        feedback_request = feedback_request_tb[process_id]
+        
+        # Create ratings dictionary from form data
+        ratings = {}
+        for quality in FEEDBACK_QUALITIES:
+            rating_key = f"rating_{quality.lower()}"
+            if rating_key in kwargs:
+                try:
+                    ratings[quality] = int(kwargs[rating_key])
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid rating value for {quality}: {kwargs[rating_key]}")
+                    continue
+        
+        # Store the feedback submission
+        submission_data = {
+            "id": secrets.token_hex(8),
+            "requestor_id": process_id,
+            "provider_id": None,  # Anonymous submission
+            "feedback_text": feedback_text,
+            "ratings": ratings,
+            "process_id": feedback_request.process_id,
+            "created_at": datetime.now()
+        }
+        submission = feedback_submission_tb.insert(submission_data)
+        
+        # Generate themes using the LLM
+        feedback_themes = convert_feedback_text_to_themes(feedback_text)
+        if feedback_themes:
+            # Store each theme in the database
+            for sentiment in ["positive", "negative", "neutral"]:
+                for theme in feedback_themes[sentiment]:
+                    theme_data = {
+                        "id": secrets.token_hex(8),
+                        "feedback_id": submission.id,
+                        "theme": theme,
+                        "sentiment": sentiment,
+                        "created_at": datetime.now()
+                    }
+                    feedback_themes_tb.insert(theme_data)
+        
+        # Increment the feedback count for the process
+        process = feedback_process_tb[feedback_request.process_id]
+        feedback_process_tb.update(
+            {"feedback_count": process.feedback_count + 1},
+            feedback_request.process_id
+        )
+        
+        # Redirect to thank you page
+        return RedirectResponse("/feedback-submitted", status_code=303)
+        
+    except Exception as e:
+        logger.error(f"Error submitting feedback: {str(e)}")
+        return "Error submitting feedback. Please try again.", 500
 
 # -------------
 # Start the App
