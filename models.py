@@ -55,6 +55,8 @@ class FeedbackRequest:
     user_type: str  # 'peer', 'supervisor', or 'report'
     process_id: str  # Link back to FeedbackProcess; may be None for standalone requests.
     expiry: datetime
+    email_sent: Optional[datetime] = None
+
 
 feedback_request_tb = db.create(FeedbackRequest, pk="token")
 

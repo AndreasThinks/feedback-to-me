@@ -358,7 +358,18 @@ def get_report_status_page(process_id : str):
                 P("Magic Link: ",
                   A("Click to open feedback form", link=uri("new-feedback-form", process_id=req.token)),
                   " ",
-                  Button("Copy", onclick=f"navigator.clipboard.writeText('{uri('new-feedback-form', process_id=req.token)}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }});")
+                  Button("Copy", onclick=f"navigator.clipboard.writeText('{uri('new-feedback-form', process_id=req.token)}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }});"),
+                  " ",
+                  Div(
+                    (P(f"Email sent on {req['email_sent']}") 
+                      if req.email_sent
+                      else Button("Send Email", 
+                          hx_post=f"/feedback-process/{process_id}/send_email?token={req.token}", 
+                          hx_target=f"#email-status-{req.token}", 
+                          hx_swap="outerHTML")
+                    ),
+                    id=f"email-status-{req.token}"
+                  )
                 ),
                 cls=f"request-{req.user_type}"
             )
@@ -587,6 +598,54 @@ def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         return "Error submitting feedback. Please try again.", 500
+
+import requests
+
+def send_feedback_email(recipient: str, link: str) -> bool:
+    try:
+        # Read the email template from the external file
+        with open("email_template.txt", "r") as f:
+            template = f.read()
+        # Substitute the {link} placeholder with the actual magic link
+        filled_template = template.replace("{link}", link)
+        # Construct the payload for the GCP Sengrip API
+        payload = {
+            "to": recipient,
+            "subject": "Feedback Request from Feedback to Me",
+            "body": filled_template
+        }
+        # Check for Sengrip API key in environment and set Authorization header if available
+        api_key = os.environ.get("SENGRIP_API_KEY")
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        logger.info(f"Sending email to {recipient} using Sengrip with payload: {payload} and headers: {headers}")
+        response = requests.post("https://sengrip.googleapis.com/sendEmail", json=payload, headers=headers)
+        if response.status_code == 200:
+            logger.info("Email sent successfully via Sengrip.")
+            return True
+        else:
+            logger.error(f"Error sending email: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Exception during sending email for {recipient}: {str(e)}")
+        return False
+
+@app.post("/feedback-process/{process_id}/send_email")
+def send_feedback_email_route(process_id: str, token: str):
+    try:
+        req = feedback_request_tb[token]
+        link = uri("new-feedback-form", process_id=req.token)
+        success = send_feedback_email(req.email, link)
+        if success:
+            # Mark the request as having been emailed by updating the record with the current timestamp.
+            feedback_request_tb.update({"email_sent": datetime.now()}, token=token)
+            return P("Email sent successfully!")
+        else:
+            return P("Failed to send email."), 500
+    except Exception as e:
+        logger.error(f"Error sending email for token {token}: {str(e)}")
+        return P("Error sending email."), 500
 
 # -------------
 # Start the App
