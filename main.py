@@ -63,7 +63,7 @@ def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
 
 def generate_external_link(url):
     """Find the base domain env var, if it exists, and return the link with the base domain as as a string"""
-    base_domain = os.environ.get("BASE_DOMAIN")
+    base_domain = os.environ.get("BASE_URL")
     if base_domain:
         return f"https://{base_domain}{url}"
     return url
@@ -141,7 +141,7 @@ def send_confirmation_email(recipient: str, token: str, recipient_first_name: st
         with open("confirmation_email_template.txt", "r") as f:
             template = f.read()
         # We'll build a direct link to trigger /confirm-email?token=<token>
-        link = generate_external_link(("confirm-email") + f"{token}")
+        link = generate_external_link(("confirm-email") + f"/{token}")
         filled_template = (
             template
             .replace("{link}", link)
