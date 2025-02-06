@@ -25,6 +25,9 @@ from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DA
 from utils import beforeware
 
 import requests
+import stripe
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+
 
 # --------------------
 # FastHTML App Setup
@@ -345,6 +348,71 @@ def confirm_email(token: str):
         logger.error(f"Error confirming email: {str(e)}")
         return Titled("Invalid Link", P("That confirmation link isn't valid or doesn't exist."))
 
+@app.get("/buy-credits")
+def buy_credits(req, sess):
+    auth = req.scope.get("auth")
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    # Display a simple form for purchasing extra credits
+    form = Form(
+         Input(name="credits", type="number", min="1", placeholder="Number of credits"),
+         Button("Buy Credits"),
+         action="/create-checkout-session", method="post"
+    )
+    return Titled("Buy Credits", form)
+
+@app.post("/create-checkout-session")
+def create_checkout_session(req, sess, credits: int):
+    auth = req.scope.get("auth")
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    from config import COST_PER_CREDIT_USD
+    # Calculate total amount in cents
+    amount = credits * COST_PER_CREDIT_USD * 100
+    # Build success and cancel URLs using uri helper
+    success_url = uri("payment-success") + "?session_id={CHECKOUT_SESSION_ID}"
+    cancel_url = uri("payment-cancel")
+    checkout_session = stripe.checkout.Session.create(
+         payment_method_types=["card"],
+         line_items=[{
+             "price_data": {
+                "currency": "usd",
+                "product_data": {
+                    "name": f"{credits} Extra Credit{'s' if credits > 1 else ''}"
+                },
+                "unit_amount": amount,
+             },
+             "quantity": 1,
+         }],
+         mode="payment",
+         success_url=success_url,
+         cancel_url=cancel_url,
+         metadata={
+             "credits": credits,
+             "user_id": auth
+         }
+    )
+    return RedirectResponse(checkout_session.url, status_code=303)
+
+@app.get("/payment-success")
+def payment_success(req, sess, session_id: str):
+    try:
+         session = stripe.checkout.Session.retrieve(session_id)
+         credits = int(session.metadata.get("credits", 0))
+         user_id = session.metadata.get("user_id")
+         if user_id:
+             user = users("id=?", (user_id,))[0]
+             user.credits += credits
+             users.update(user)
+         message = f"Payment successful! {credits} credits have been added to your account."
+         return Titled("Payment Success", P(message), A("Go to Dashboard", href="/dashboard"))
+    except Exception as e:
+         return Titled("Error", P("Error processing payment."))
+
+@app.get("/payment-cancel")
+def payment_cancel():
+    return Titled("Payment Cancelled", P("Your payment was cancelled."), A("Go back", href="/dashboard"))
+
 # -----------------------
 # Routes: Dashboard
 # -----------------------
@@ -365,7 +433,9 @@ def get(req):
             active_html.append(p)
 
     dashboard_page_active = Container(
-        H2(f"Hello {user.first_name}, you have {user.credits} credits remaining"),
+        H2(f"Hi {user.first_name}!"),
+        P("Welcome to your dashboard. Here you can manage your feedback collection processes."),
+        P(f"You have {user.credits} credits remaining"),
         Div(
             H3("Active Feedback Collection"),
             *active_html or P("No active feedback collection processes.", cls="text-muted"),
@@ -521,7 +591,7 @@ def get_report_status_page(process_id : str):
         submission = next((s for s in submissions if s.requestor_id == req.token), None)
         requests_list.append(
             Article(
-                H4(f"{req.user_type.title()} Feedback Request"),
+                H4(f"{req.user_type} Feedback Request"),
                 P(f"Email: {req.email}"),
                 P(f"Status: {'Submitted' if submission else 'Pending'}"),
                 P("Magic Link: ",

@@ -15,6 +15,7 @@ MIN_SUPERVISORS = int(os.getenv("MIN_SUPERVISORS", "1"))
 MIN_REPORTS = int(os.getenv("MIN_REPORTS", "0"))
 
 STARTING_CREDITS = int(os.getenv("STARTING_CREDITS", "5"))
+COST_PER_CREDIT_USD = int(os.getenv("COST_PER_CREDIT_USD", "3"))
 
 MAGIC_LINK_EXPIRY_DAYS = int(os.getenv("MAGIC_LINK_EXPIRY_DAYS", "30"))
 # Number of reports (people who report) defaults to 0

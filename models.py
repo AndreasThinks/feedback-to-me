@@ -42,7 +42,7 @@ class FeedbackProcess:
 
 @patch
 def __ft__(self: FeedbackProcess):
-    link = A(f"Feedback Process {self.id}", hx_get= f'/feedback-process/{self.id}', hx_target="#main-content", id=f'process-{self.id}')   
+    link = AX(f"Feedback Process {self.id}", hx_get= f'/feedback-process/{self.id}', hx_target="#main-content", id=f'process-{self.id}')   
     status_str = "Complete" if self.feedback_report else "In Progress"
     cts = (status_str, " - ", link)
     return Li(*cts, id=f'process-{self.id}')
