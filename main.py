@@ -747,7 +747,7 @@ def create_feeback_report(process_id):
 # -------------------------------
 @app.get("/new-feedback-form/{process_id}", name="new-feedback-form")
 def get_feedback_form(process_id: str):
-    introduction_text = "{first_name} has asked for your feedback"
+    introduction_text = P("{first_name} has asked for your feedback")
     
     form = Form(
         Group(
@@ -756,9 +756,9 @@ def get_feedback_form(process_id: str):
             Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True)
         ),
         Button("Submit Feedback", type="submit"),
-        hx_post="/new-feedback-form/{process_id}/submit",
+        hx_post="/new-feedback-form/{process_id}/submit", hx_target="#body"
     )
-    return Titled("Submit Feedback", form)
+    return Titled("Submit Feedback", introduction_text, form)
 
 @app.get("/feedback-submitted")
 def get_feedback_submitted():
