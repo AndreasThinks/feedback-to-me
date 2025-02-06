@@ -98,7 +98,9 @@ register_form = Form(
             Input(name="role", type="text", placeholder="Role (e.g. Software Engineer)", required=False),
             Input(name="company", type="text", placeholder="Company", required=False),
             Input(name="team", type="text", placeholder="Team", required=False),
-            Input(name="pwd", type="password", placeholder="Password", required=True)
+            Input(name="pwd", type="password", placeholder="Password", required=True),
+            Input(name="pwd_confirm", type="password", placeholder="Confirm Password", required=True)
         ),
         Button("Register", type="submit", cls="secondary"),
-        action="/register-new-user", method="post")
+        action="/register-new-user", method="post",
+        cls="registration-form")

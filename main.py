@@ -33,6 +33,7 @@ app, rt = fast_app(
     before=beforeware,
     hdrs=(
         MarkdownJS(),  # Allows rendering markdown in feedback text, if needed.
+        Link(rel='stylesheet', href='/static/styles.css', type='text/css')
     ),
     exception_handlers={HTTPException: lambda req, exc: Response(content="", status_code=exc.status_code, headers=exc.headers)}
 )
@@ -436,15 +437,16 @@ def create_new_feedback_process(peers_emails: str, supervisors_emails: str, repo
     # Create feedback requests for each role.
     for email in peers:
         link = generate_magic_link(email, process_id=process_data["id"])
-        token = link.replace("/feedback/submit/", "")
+        token = link.replace("new-feedback-form/token=", "")
+        print('token:', token)
         feedback_request_tb.update({"user_type": "peer"}, token=token)
     for email in supervisors:
         link = generate_magic_link(email, process_id=process_data["id"])
-        token = link.replace("/feedback/submit/", "")
+        token = link.replace("new-feedback-form/token=", "")
         feedback_request_tb.update({"user_type": "supervisor"}, token=token)
     for email in reports:
         link = generate_magic_link(email, process_id=process_data["id"])
-        token = link.replace("/feedback/submit/", "")
+        token = link.replace("new-feedback-form/token=", "")
         feedback_request_tb.update({"user_type": "report"}, token=token)
     return RedirectResponse("/dashboard", status_code=303)
 
