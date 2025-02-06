@@ -597,7 +597,7 @@ def get_report_status_page(process_id : str):
                 P("Magic Link: ",
                   A("Click to open feedback form", link=uri("new-feedback-form", process_id=req.token)),
                   " ",
-                  Button("Copy", onclick=f"navigator.clipboard.writeText('{uri('new-feedback-form', process_id=req.token)}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }});"),
+                  Button("Copy to Clipboard", cls='copy-to-clipboard-button', onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{uri('new-feedback-form', process_id=req.token)}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
                   " ",
                   Div(
                     (P(f"Email sent on {req['email_sent']}") 
