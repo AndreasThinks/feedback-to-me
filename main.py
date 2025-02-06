@@ -16,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login
-from pages import dashboard_page, login_or_register_page,register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
+from pages import error_message, login_or_register_page,register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
@@ -121,11 +121,11 @@ def post_login(login: Login, sess):
         logger.debug(f"User found: {login.email}")
     except Exception as e:
         logger.warning(f"Login failed - user not found: {login.email}")
-        return RedirectResponse("/login-form", status_code=303)
+        return error_message
     
     if not bcrypt.checkpw(login.pwd.encode("utf-8"), u.pwd.encode("utf-8")):
         logger.warning(f"Login failed - invalid password for user: {login.email}")
-        return RedirectResponse("/login-form", status_code=303)
+        return error_message
     
     sess["auth"] = u.id
     logger.info(f"User successfully logged in: {login.email}")
@@ -601,42 +601,62 @@ def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
 
 import requests
 
-def send_feedback_email(recipient: str, link: str) -> bool:
+def send_feedback_email(recipient: str,  link: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
     try:
-        # Read the email template from the external file
         with open("email_template.txt", "r") as f:
             template = f.read()
-        # Substitute the {link} placeholder with the actual magic link
-        filled_template = template.replace("{link}", link)
-        # Construct the payload for the GCP Sengrip API
+        filled_template = (
+            template
+            .replace("{link}", link)
+            .replace("{recipient_first_name}", recipient_first_name)
+            .replace("{recipient_company}", recipient_company)
+        )
+
+        endpoint = os.environ.get("SMTP2GO_EMAIL_ENDPOINT", "https://api.smtp2go.com/v3")
+        api_key = os.environ.get("SMTP2GO_API_KEY")
+        if not api_key:
+            logger.error("SMTP2GO_API_KEY is missing.")
+            return False
+
+        # Build the request to /email/send
         payload = {
-            "to": recipient,
+            "sender": "noreply@feedbacktome.app",
+            "to": [recipient],
             "subject": "Feedback Request from Feedback to Me",
-            "body": filled_template
+            "text_body": filled_template
         }
-        # Check for Sengrip API key in environment and set Authorization header if available
-        api_key = os.environ.get("SENGRIP_API_KEY")
-        headers = {"Content-Type": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-        logger.info(f"Sending email to {recipient} using Sengrip with payload: {payload} and headers: {headers}")
-        response = requests.post("https://sengrip.googleapis.com/sendEmail", json=payload, headers=headers)
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Smtp2go-Api-Key": api_key
+        }
+
+        logger.info(f"Sending email to {recipient} using SMTP2GO with payload: {payload}")
+        response = requests.post(endpoint.rstrip("/") + "/email/send", json=payload, headers=headers)
+
         if response.status_code == 200:
-            logger.info("Email sent successfully via Sengrip.")
-            return True
+            result_json = response.json()
+            succeeded = result_json.get("data", {}).get("succeeded", 0)
+            if succeeded == 1:
+                logger.info("Email sent successfully via SMTP2GO.")
+                return True
+            else:
+                logger.error(f"SMTP2GO error: {result_json}")
+                return False
         else:
             logger.error(f"Error sending email: {response.status_code} - {response.text}")
             return False
+
     except Exception as e:
         logger.error(f"Exception during sending email for {recipient}: {str(e)}")
         return False
 
 @app.post("/feedback-process/{process_id}/send_email")
-def send_feedback_email_route(process_id: str, token: str):
+def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):
     try:
         req = feedback_request_tb[token]
         link = uri("new-feedback-form", process_id=req.token)
-        success = send_feedback_email(req.email, link)
+        success = send_feedback_email(req.email, link, recipient_first_name, recipient_company)
         if success:
             # Mark the request as having been emailed by updating the record with the current timestamp.
             feedback_request_tb.update({"email_sent": datetime.now()}, token=token)

@@ -84,8 +84,12 @@ login_form = Form(
             Input(name="pwd", type="password", placeholder="Password", required=True)
         ),
         Button("Login", type="submit", cls="primary"),
-        action="/login", method="post",
+        hx_post="/login", hx_target="#login-form", hx_swap="beforebegin", id='login-form'
     )
+
+error_message = Container(
+    I("We couldn't log you in.")
+)
 
 register_form = Form(
         Group(
