@@ -4,9 +4,6 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # Sync the project into a new environment, using the frozen lockfile
 WORKDIR /app
 
-# Copy the environment variables file (if exists)
-COPY .env ./
-
 COPY pyproject.toml ./
 
 COPY uv.lock ./
