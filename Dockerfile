@@ -18,9 +18,6 @@ RUN uv sync
 # Copy the rest of the application code
 COPY . .
 
-VOLUME ["/data"]
-
-
 # Set environment variables for Cloud Run
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:$PATH"
