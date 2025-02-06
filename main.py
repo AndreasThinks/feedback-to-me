@@ -53,12 +53,13 @@ def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
         nav_bar = navigation_bar_logged_in(user)
     else:
         nav_bar = navigation_bar_logged_out
-    return Container(
-        Title(page_title),
+    return (Title(page_title),
+    Favicon('static/favicon.ico', dark_icon='static/favicon.ico'),
+    Container(
         nav_bar,
         Div(page_body, id="main-content"),
         footer_bar
-    )
+    ))
 
 def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
     """
@@ -200,11 +201,11 @@ def get():
 
 @app.get("/about")
 def get():
-    return about_page
+    return generate_themed_page(about_page)
 
 @app.get("/privacy-policy")
 def get():
-    return privacy_policy_page
+    return generate_themed_page(privacy_policy_page)
 
 # -----------------------
 # User Registration and Login Pages

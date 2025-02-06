@@ -22,17 +22,18 @@ def dashboard_page(user):
 
 landing_page = Container(
     H2("Welcome to the Feedback App"),
-    Button("Start Collecting Feedback"),
+    Button("Start Collecting Feedback", href="/login-or-register"),
+    Br(),
     P("This is a simple app to collect feedback from your team."),
 )
 
 navigation_bar_logged_out = Nav(
     Ul(
-        Li(Strong(A("Feedback to Me", href="/"))),
+        Li(Strong(A("Feedback to Me", href="/")))),
     Ul(
         Li(A("About", href="/about")),
         Li(A("Get Started", href="/login-or-register"))
-    )),
+    ),
     cls='navbar'
 )
 
