@@ -756,7 +756,7 @@ def get_feedback_form(process_id: str):
             Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True)
         ),
         Button("Submit Feedback", type="submit"),
-        hx_post="/new-feedback-form/{process_id}/submit", hx_target="#body"
+        hx_post="/new-feedback-form/{process_id}/submit", hx_target="body", hx_swap="outerHTML"
     )
     return Titled("Submit Feedback", introduction_text, form)
 
@@ -765,18 +765,18 @@ def get_feedback_submitted():
     return Titled("Feedback Submitted", P("Thank you for your feedback! It has been submitted successfully."))
 
 @app.post("/new-feedback-form/{process_id}/submit")
-def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
+def submit_feedback_form(process_id: str, feedback_text: str, data : dict):
     try:
         feedback_request = feedback_request_tb[process_id]
         
         ratings = {}
         for quality in FEEDBACK_QUALITIES:
             rating_key = f"rating_{quality.lower()}"
-            if rating_key in kwargs:
+            if rating_key in data:
                 try:
-                    ratings[quality] = int(kwargs[rating_key])
+                    ratings[quality] = int(data[rating_key])
                 except (ValueError, TypeError):
-                    logger.warning(f"Invalid rating value for {quality}: {kwargs[rating_key]}")
+                    logger.warning(f"Invalid rating value for {quality}: {data[rating_key]}")
                     continue
         
         submission_data = {
