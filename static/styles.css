@@ -72,3 +72,11 @@ e/* Basic styling for forms and containers */
 .landing-page .btn-primary:hover {
    background-color: #e73370;
 }
+
+.footer {
+   padding-top: 1rem;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   font-size: x-small;
+}

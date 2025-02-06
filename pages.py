@@ -40,8 +40,8 @@ navigation_bar_logged_out = Nav(
     Ul(
         Li(Strong(A("Feedback to Me", href="/")))),
     Ul(
-        Li(A("About", href="/about")),
-        Li(A("Get Started", href="/login-or-register"))
+        Li(AX("About", href="/about")),
+        Li(AX("Get Started", hx_get="/login-or-register", hx_target="#main-content", hx_swap="outerHTML"))
     ),
     cls='navbar'
 )
@@ -60,7 +60,7 @@ def navigation_bar_logged_in(user):
         cls='navbar'
     )
 
-footer_bar = Footer(P("© 2021 Feedback App"), cls='footer')
+footer_bar = Footer(P("© 2025 Feedback to Me"), cls='footer')
 
 about_page = Container(
     H2("About the Feedback App"),
