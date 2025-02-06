@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 from fasthtml.common import *
 from datetime import datetime, timedelta
+dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
+
 import secrets, os
 import bcrypt
 import logging
 from datetime import datetime
-
 
 # Configure logging based on environment variable
 log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -15,16 +16,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login
-from pages import error_message, login_or_register_page,register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
+from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login, confirm_tokens_tb
+from pages import error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
-
 from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES
-
 from utils import beforeware
 
+import requests
 
 # --------------------
 # FastHTML App Setup
@@ -65,11 +65,111 @@ def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
     })
     return uri("new-feedback-form", token=token)
 
+def send_feedback_email(recipient: str,  link: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
+    try:
+        with open("email_template.txt", "r") as f:
+            template = f.read()
+        filled_template = (
+            template
+            .replace("{link}", link)
+            .replace("{recipient_first_name}", recipient_first_name)
+            .replace("{recipient_company}", recipient_company)
+        )
+
+        endpoint = os.environ.get("SMTP2GO_EMAIL_ENDPOINT", "https://api.smtp2go.com/v3")
+        api_key = os.environ.get("SMTP2GO_API_KEY")
+        if not api_key:
+            logger.error("SMTP2GO_API_KEY is missing.")
+            return False
+
+        payload = {
+            "sender": "noreply@feedback-to.me",
+            "to": [recipient],
+            "subject": "Feedback Request from Feedback to Me",
+            "text_body": filled_template
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Smtp2go-Api-Key": api_key
+        }
+
+        logger.info(f"Sending email to {recipient} using SMTP2GO with payload: {payload}")
+        response = requests.post(endpoint.rstrip("/") + "/email/send", json=payload, headers=headers)
+
+        if response.status_code == 200:
+            result_json = response.json()
+            succeeded = result_json.get("data", {}).get("succeeded", 0)
+            if succeeded == 1:
+                logger.info("Email sent successfully via SMTP2GO.")
+                return True
+            else:
+                logger.error(f"SMTP2GO error: {result_json}")
+                return False
+        else:
+            logger.error(f"Error sending email: {response.status_code} - {response.text}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Exception during sending email for {recipient}: {str(e)}")
+        return False
+
+def send_confirmation_email(recipient: str, token: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
+    """
+    Sends an email with a confirmation link containing the given token.
+    """
+    try:
+        with open("email_template.txt", "r") as f:
+            template = f.read()
+        # We'll build a direct link to trigger /confirm-email?token=<token>
+        link = uri("confirm-email", token=token)
+        filled_template = (
+            template
+            .replace("{link}", link)
+            .replace("{recipient_first_name}", recipient_first_name)
+            .replace("{recipient_company}", recipient_company)
+        )
+
+        endpoint = os.environ.get("SMTP2GO_EMAIL_ENDPOINT", "https://api.smtp2go.com/v3")
+        api_key = os.environ.get("SMTP2GO_API_KEY")
+        if not api_key:
+            logger.error("SMTP2GO_API_KEY is missing.")
+            return False
+
+        payload = {
+            "sender": "noreply@feedback-to.me",
+            "to": [recipient],
+            "subject": "Please Confirm Your Email Address",
+            "text_body": filled_template
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Smtp2go-Api-Key": api_key
+        }
+
+        logger.info(f"Sending confirmation email to {recipient} with payload: {payload}")
+        response = requests.post(endpoint.rstrip("/") + "/email/send", json=payload, headers=headers)
+
+        if response.status_code == 200:
+            result_json = response.json()
+            succeeded = result_json.get("data", {}).get("succeeded", 0)
+            if succeeded == 1:
+                logger.info("Confirmation email sent successfully.")
+                return True
+            else:
+                logger.error(f"SMTP2GO error sending confirmation email: {result_json}")
+                return False
+        else:
+            logger.error(f"Error sending confirmation email: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Exception while sending confirmation email to {recipient}: {str(e)}")
+        return False
+
 # -----------------------
 # static pages
 # -----------------------
-
-# this is your landing page - it should have some markdown, and a link to the key pages, as well as a login button
 
 @app.get("/")
 def get(req, sess):
@@ -102,7 +202,6 @@ def get():
 
 @app.get("/login-or-register")
 def get():
-
     return login_or_register_page 
 
 @app.get("/login-form")
@@ -119,7 +218,7 @@ def post_login(login: Login, sess):
     try:
         u = users[login.email]
         logger.debug(f"User found: {login.email}")
-    except Exception as e:
+    except Exception:
         logger.warning(f"Login failed - user not found: {login.email}")
         return error_message
     
@@ -127,9 +226,17 @@ def post_login(login: Login, sess):
         logger.warning(f"Login failed - invalid password for user: {login.email}")
         return error_message
     
+    # Check if user is confirmed
+    if not u.is_confirmed:
+        logger.warning(f"Login failed - user not confirmed: {login.email}")
+        return Titled(
+            "Email Not Confirmed",
+            P("Please check your email for a confirmation link. You cannot log in until you confirm.")
+        )
+
     sess["auth"] = u.id
     logger.info(f"User successfully logged in: {login.email}")
-    return RedirectResponse("/dashboard", status_code=303)
+    return Redirect("/dashboard")
 
 @rt("/logout")
 def get_logout(sess):
@@ -147,7 +254,6 @@ def get(req):
         return RedirectResponse("/dashboard", status_code=303)
     logger.debug("Serving registration form")
     return register_form
-
 
 # -----------------------
 # Routes: User Registration
@@ -167,29 +273,77 @@ def post_register(email: str, first_name:str, role: str, company: str, team: str
         "company": company,
         "team": team,
         "created_at": datetime.now(),
-        "pwd": bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        "pwd": bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
+        "is_confirmed": False
     }
     try:
-        u = users[email]
+        existing = users[email]
         logger.warning(f"Registration failed - email already exists: {email}")
+        return Titled("Registration Failed", P("That email is already in use."))
     except Exception:
-        u = users.insert(user_data)
-        logger.info(f"New user registered: {email}")
-    
-    sess["auth"] = u.id
-    logger.debug(f"Session auth set for new user: {u.id}")
-    return RedirectResponse("/", status_code=303)
+        new_user = users.insert(user_data)
+        logger.info(f"New user registered (unconfirmed): {email}")
+
+        # Generate and store a new confirmation token
+        token = secrets.token_urlsafe()
+        expiry = datetime.now() + timedelta(days=7)
+        confirm_tokens_tb.insert({
+            "token": token,
+            "email": email,
+            "expiry": expiry,
+            "is_used": False
+        })
+        if dev_mode:
+            logger.warning("DEV_MODE is enabled; automatically confirming new user.")
+            new_user.is_confirmed = True
+            users.update(new_user)
+        else:
+            # Send them a confirmation link
+            send_confirmation_email(email, token, first_name, company)
+
+    return Titled(
+        "Check Your Email",
+        P("We've sent a confirmation link to your email. Please click it to confirm before logging in.")
+    )
+
+@app.get("/confirm-email")
+def confirm_email(token: str):
+    logger.debug(f"Confirm email attempt with token: {token}")
+    try:
+        ct = confirm_tokens_tb[token]
+        if ct.is_used:
+            logger.debug("Confirmation token already used.")
+            return Titled("Already Used", P("That link has already been used."))
+        if ct.expiry < datetime.now():
+            return Titled("Link Expired", P("Please request a new confirmation link."))
+
+        user_entry = users[ct.email]
+        if user_entry.is_confirmed:
+            logger.debug("User is already confirmed.")
+            return Titled("Already Confirmed", P("Your email is already confirmed."))
+
+        # Mark user as confirmed
+        user_entry.is_confirmed = True
+        users.update(user_entry, ct.email)
+
+        # Mark the token as used
+        ct.is_used = True
+        confirm_tokens_tb.update(ct, ct.token)
+
+        logger.info(f"User {ct.email} confirmed email successfully.")
+        return Titled("Email Confirmed", P("Thank you! Your email has been confirmed. You may now log in."))
+    except Exception as e:
+        logger.error(f"Error confirming email: {str(e)}")
+        return Titled("Invalid Link", P("That confirmation link isn't valid or doesn't exist."))
 
 # -----------------------
 # Routes: Dashboard
 # -----------------------
-
 @app.get("/dashboard")
 def get(req):
     auth = req.scope.get("auth")
     logger.debug(f"Dashboard accessed by user: {auth}")
     
-    # Get user's feedback processes
     processes = feedback_process_tb("user_id=?", (auth,))
     logger.debug(f"Found {len(processes)} feedback processes")
     
@@ -219,11 +373,9 @@ def get(req):
     )
     return generate_themed_page(dashboard_page_active, auth=auth, page_title="Your Dashboard")
 
-
 # -----------------------
 # Routes: New Feedback Process
 # -----------------------
-
 @app.get("/start-new-feedback-process")
 def get_new_feedback():
     form = Form(
@@ -299,38 +451,30 @@ def create_new_feedback_process(peers_emails: str, supervisors_emails: str, repo
 # -----------------------
 # Routes: Existing Feedback Process
 # -----------------------
-
 @app.get("/feedback-process/{process_id}")
 def get_report_status_page(process_id : str):
-    # Get the feedback process
     try:
         process = feedback_process_tb[process_id]
-    except Exception as e:
+    except Exception:
         logger.warning(f"Feedback process not found: {process_id}")
         return RedirectResponse("/dashboard", status_code=303)
     
-    # Get all feedback requests for this process
     requests = feedback_request_tb("process_id=?", (process_id,))
-    
-    # Get all feedback submissions for this process
     submissions = feedback_submission_tb("process_id=?", (process_id,))
     
-    # Count submissions by type
     submission_counts = {
         "peer": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "peer"]),
         "supervisor": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "supervisor"]),
         "report": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "report"])
     }
     
-    # Check if we have enough submissions to generate a report
     can_generate_report = (
         submission_counts["peer"] >= process.min_required_peers and
         submission_counts["supervisor"] >= process.min_required_supervisors and
         submission_counts["report"] >= process.min_required_reports and
-        not process.feedback_report  # Only if report doesn't exist yet
+        not process.feedback_report
     )
     
-    # Create status sections
     status_section = Article(
         H2("Feedback Process Status"),
         P(f"Process ID: {process.id}"),
@@ -344,12 +488,9 @@ def get_report_status_page(process_id : str):
         )
     )
     
-    # Create requests section showing each request and its status
     requests_list = []
     for req in requests:
-        # Find matching submission if it exists
         submission = next((s for s in submissions if s.requestor_id == req.token), None)
-        
         requests_list.append(
             Article(
                 H4(f"{req.user_type.title()} Feedback Request"),
@@ -380,7 +521,6 @@ def get_report_status_page(process_id : str):
         *requests_list
     )
     
-    # Add report generation button if eligible
     action_section = Div()
     if can_generate_report:
         action_section = Div(
@@ -391,7 +531,6 @@ def get_report_status_page(process_id : str):
             )
         )
     
-    # Show existing report if it exists
     report_section = Div(id="report-section")
     if process.feedback_report:
         report_section = Article(
@@ -411,19 +550,14 @@ def get_report_status_page(process_id : str):
     )
 
 def create_feedback_report_input(process_id):
-    # Get the feedback process
     process = feedback_process_tb[process_id]
-    
-    # Get all submissions for this process
     submissions = feedback_submission_tb("process_id=?", (process_id,))
     
-    # Calculate statistics for each quality
     quality_stats = {}
     for quality in process.qualities:
         ratings = [s.ratings.get(quality) for s in submissions if quality in s.ratings]
         if ratings:
             avg = sum(ratings) / len(ratings)
-            # Calculate variance
             variance = sum((r - avg) ** 2 for r in ratings) / len(ratings)
             quality_stats[quality] = {
                 "average": round(avg, 2),
@@ -431,22 +565,17 @@ def create_feedback_report_input(process_id):
                 "count": len(ratings)
             }
     
-    # Get all themes for this process's feedback
     themes = feedback_themes_tb("feedback_id IN (SELECT id FROM feedback_submission WHERE process_id=?)", (process_id,))
-    
-    # Group themes by sentiment
     themed_feedback = {
         "positive": [t.theme for t in themes if t.sentiment == "positive"],
         "negative": [t.theme for t in themes if t.sentiment == "negative"],
         "neutral": [t.theme for t in themes if t.sentiment == "neutral"]
     }
     
-    # Format the input for the LLM
     report_input = f"""Feedback Report Summary for Process {process_id}
 
 Quality Ratings:
 {'-' * 40}"""
-
     for quality, stats in quality_stats.items():
         report_input += f"""
 {quality}:
@@ -472,39 +601,29 @@ Summary Statistics:
 - Total Submissions: {len(submissions)}
 - Total Themes Identified: {len(themes)}
 """
-    
     return report_input
 
 @app.post("/feedback-process/{process_id}/generate_completed_feedback_report")
 def create_feeback_report(process_id):
     try:
-        # Get the process to verify it exists and check status
         process = feedback_process_tb[process_id]
-        
-        # Verify we have enough submissions
         submissions = feedback_submission_tb("process_id=?", (process_id,))
         submission_counts = {
             "peer": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "peer"]),
             "supervisor": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "supervisor"]),
             "report": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "report"])
         }
-        
         if (submission_counts["peer"] < process.min_required_peers or
             submission_counts["supervisor"] < process.min_required_supervisors or
             submission_counts["report"] < process.min_required_reports):
             logger.warning(f"Attempted to generate report without sufficient feedback for process: {process_id}")
             return "Not enough feedback submissions to generate report", 400
-        
-        # Generate the report input
+
         feedback_report_input = create_feedback_report_input(process_id)
-        
-        # Generate the report using the LLM
         feedback_report = generate_completed_feedback_report(feedback_report_input)
         
-        # Save the report to the database
         feedback_process_tb.update({"feedback_report": feedback_report}, process_id)
         
-        # Return the report section for HTMX to update
         return Article(
             H3("Feedback Report"),
             Div(feedback_report, cls="markdown"),
@@ -520,8 +639,6 @@ def create_feeback_report(process_id):
 # -------------------------------
 @app.get("/new-feedback-form/{process_id}", name="new-feedback-form")
 def get_feedback_form(process_id: str):
-    # this is a page for external users to submit feedback. It should show a bit of intro text, and then it should shown the form and a submit button
-    # once the feedback is submitted and saved to DB, take them to the thank you page.
     introduction_text = "{first_name} has asked for your feedback"
     
     form = Form(
@@ -536,18 +653,15 @@ def get_feedback_form(process_id: str):
     )
     return Titled("Submit Feedback", form)
 
-
 @app.get("/feedback-submitted")
 def get_feedback_submitted():
-    return Titled("Feedback Submitted", P("Thank you for your feedback! It has been submitted successfully. if You'd like to do this to, go to ..."))
+    return Titled("Feedback Submitted", P("Thank you for your feedback! It has been submitted successfully."))
 
 @app.post("/new-feedback-form/{process_id}/submit")
 def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
     try:
-        # Get the feedback request to verify token and get process_id
         feedback_request = feedback_request_tb[process_id]
         
-        # Create ratings dictionary from form data
         ratings = {}
         for quality in FEEDBACK_QUALITIES:
             rating_key = f"rating_{quality.lower()}"
@@ -558,11 +672,10 @@ def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
                     logger.warning(f"Invalid rating value for {quality}: {kwargs[rating_key]}")
                     continue
         
-        # Store the feedback submission
         submission_data = {
             "id": secrets.token_hex(8),
             "requestor_id": process_id,
-            "provider_id": None,  # Anonymous submission
+            "provider_id": None,
             "feedback_text": feedback_text,
             "ratings": ratings,
             "process_id": feedback_request.process_id,
@@ -570,10 +683,8 @@ def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
         }
         submission = feedback_submission_tb.insert(submission_data)
         
-        # Generate themes using the LLM
         feedback_themes = convert_feedback_text_to_themes(feedback_text)
         if feedback_themes:
-            # Store each theme in the database
             for sentiment in ["positive", "negative", "neutral"]:
                 for theme in feedback_themes[sentiment]:
                     theme_data = {
@@ -585,71 +696,17 @@ def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
                     }
                     feedback_themes_tb.insert(theme_data)
         
-        # Increment the feedback count for the process
         process = feedback_process_tb[feedback_request.process_id]
         feedback_process_tb.update(
             {"feedback_count": process.feedback_count + 1},
             feedback_request.process_id
         )
         
-        # Redirect to thank you page
         return RedirectResponse("/feedback-submitted", status_code=303)
         
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         return "Error submitting feedback. Please try again.", 500
-
-import requests
-
-def send_feedback_email(recipient: str,  link: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
-    try:
-        with open("email_template.txt", "r") as f:
-            template = f.read()
-        filled_template = (
-            template
-            .replace("{link}", link)
-            .replace("{recipient_first_name}", recipient_first_name)
-            .replace("{recipient_company}", recipient_company)
-        )
-
-        endpoint = os.environ.get("SMTP2GO_EMAIL_ENDPOINT", "https://api.smtp2go.com/v3")
-        api_key = os.environ.get("SMTP2GO_API_KEY")
-        if not api_key:
-            logger.error("SMTP2GO_API_KEY is missing.")
-            return False
-
-        # Build the request to /email/send
-        payload = {
-            "sender": "noreply@feedbacktome.app",
-            "to": [recipient],
-            "subject": "Feedback Request from Feedback to Me",
-            "text_body": filled_template
-        }
-
-        headers = {
-            "Content-Type": "application/json",
-            "X-Smtp2go-Api-Key": api_key
-        }
-
-        logger.info(f"Sending email to {recipient} using SMTP2GO with payload: {payload}")
-        response = requests.post(endpoint.rstrip("/") + "/email/send", json=payload, headers=headers)
-
-        if response.status_code == 200:
-            result_json = response.json()
-            succeeded = result_json.get("data", {}).get("succeeded", 0)
-            if succeeded == 1:
-                logger.info("Email sent successfully via SMTP2GO.")
-                return True
-            else:
-                logger.error(f"SMTP2GO error: {result_json}")
-                return False
-        else:
-            logger.error(f"Error sending email: {response.status_code} - {response.text}")
-            return False
-
-    except Exception as e:
-        logger.error(f"Exception during sending email for {recipient}: {str(e)}")
-        return False
 
 @app.post("/feedback-process/{process_id}/send_email")
 def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):
@@ -658,7 +715,6 @@ def send_feedback_email_route(process_id: str, token: str, recipient_first_name:
         link = uri("new-feedback-form", process_id=req.token)
         success = send_feedback_email(req.email, link, recipient_first_name, recipient_company)
         if success:
-            # Mark the request as having been emailed by updating the record with the current timestamp.
             feedback_request_tb.update({"email_sent": datetime.now()}, token=token)
             return P("Email sent successfully!")
         else:

@@ -17,11 +17,12 @@ class User:
     id: str
     first_name: str
     email: str
-    role: str
-    company: str
-    team: str
+    role: Optional[str]
+    company: Optional[str]
+    team: Optional[str]
     created_at: datetime
     pwd: str
+    is_confirmed: bool = False
 
 users = db.create(User, pk="email")  # Use email as primary key for simpler login
 
@@ -82,6 +83,15 @@ class FeedbackTheme:
     created_at: datetime
 
 feedback_themes_tb = db.create(FeedbackTheme, pk="id")
+
+@dataclass
+class ConfirmToken:
+    token: str
+    email: str
+    expiry: datetime
+    is_used: bool = False
+
+confirm_tokens_tb = db.create(ConfirmToken, pk="token")
 
 # Other helper functions
 

@@ -1,4 +1,4 @@
-.PHONY: build run stop help
+.PHONY: build run stop help create-confirmed-user
 
 # Default target when just running 'make'
 .DEFAULT_GOAL := help
@@ -19,7 +19,7 @@ build: ## Build Docker image
 	docker build -t feedback2me-local .
 
 run: ## Run Docker container with environment variables
-	docker run --rm --env-file .env -p 8080:8080 feedback2me-local
+	docker run --rm --env-file .env -p 8080:8080 --name feedback2me feedback2me-local
 
 stop: ## Stop all running containers for this project
 	docker ps -q --filter ancestor=feedback2me-local | xargs -r docker stop

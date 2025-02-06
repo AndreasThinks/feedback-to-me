@@ -95,9 +95,9 @@ register_form = Form(
         Group(
             Input(name="first_name", type="text", placeholder="First Name", required=True),
             Input(name="email", type="email", placeholder="Email", required=True),
-            Input(name="role", type="text", placeholder="Role (e.g. Software Engineer)", required=True),
-            Input(name="company", type="text", placeholder="Company", required=True),
-            Input(name="team", type="text", placeholder="Team", required=True),
+            Input(name="role", type="text", placeholder="Role (e.g. Software Engineer)", required=False),
+            Input(name="company", type="text", placeholder="Company", required=False),
+            Input(name="team", type="text", placeholder="Team", required=False),
             Input(name="pwd", type="password", placeholder="Password", required=True)
         ),
         Button("Register", type="submit", cls="secondary"),
