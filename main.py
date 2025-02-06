@@ -610,7 +610,7 @@ def get_report_status_page(process_id : str):
                   Button("Copy to Clipboard", cls='copy-to-clipboard-button', onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
                   " ",
                   Div(
-                    (P(f"Email sent on {req['email_sent']}") 
+                    (P(f"Email sent on {req.email_sent}") 
                       if req.email_sent
                       else Button("Send Email", 
                           hx_post=f"/feedback-process/{process_id}/send_email?token={req.token}", 
