@@ -82,10 +82,8 @@ login_or_register_page = Container(
 ))
 
 login_form = Form(
-        Group(
             Input(name="email", type="email", placeholder="Email", required=True),
-            Input(name="pwd", type="password", placeholder="Password", required=True)
-        ),
+            Input(name="pwd", type="password", placeholder="Password", required=True),
         Button("Login", type="submit", cls="primary"),
         hx_post="/login", hx_target="#login-form", hx_swap="beforebegin", id='login-form'
     )
@@ -95,15 +93,13 @@ error_message = Container(
 )
 
 register_form = Form(
-        Group(
             Input(name="first_name", type="text", placeholder="First Name", required=True),
             Input(name="email", type="email", placeholder="Email", required=True),
+            Input(name="pwd", type="password", placeholder="Password", required=True),
+            Input(name="pwd_confirm", type="password", placeholder="Confirm Password", required=True),
             Input(name="role", type="text", placeholder="Role (e.g. Software Engineer)", required=False),
             Input(name="company", type="text", placeholder="Company", required=False),
             Input(name="team", type="text", placeholder="Team", required=False),
-            Input(name="pwd", type="password", placeholder="Password", required=True),
-            Input(name="pwd_confirm", type="password", placeholder="Confirm Password", required=True)
-        ),
         Button("Register", type="submit", cls="secondary"),
         action="/register-new-user", method="post",
         cls="registration-form")
