@@ -65,7 +65,7 @@ def generate_external_link(url):
     """Find the base domain env var, if it exists, and return the link with the base domain as as a string"""
     base_domain = os.environ.get("BASE_URL")
     if base_domain:
-        return f"https://{base_domain}{url}"
+        return f"https://{base_domain}/{url}"
     return url
 
 def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:

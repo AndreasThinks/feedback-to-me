@@ -50,7 +50,7 @@ def create_feedback_model():
     }
 
     return genai.GenerativeModel(
-        model_name="gemini-1.5-flash-8b",
+        model_name="gemini-2.0-flash-lite",
         generation_config=generation_config,
         system_instruction="You are a helpful assistant who helps collect and anonymise 360 feedback requests.",
     )
@@ -123,7 +123,7 @@ def generate_completed_feedback_report(feedback_input: str) -> str:
     """
     try:
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash-8b",
+            model_name="gemini-2.0-flash",
             generation_config={
                 "temperature": 0.7,
                 "top_p": 0.8,
