@@ -319,7 +319,7 @@ def post_register(email: str, first_name:str, role: str, company: str, team: str
         P("We've sent a confirmation link to your email. Please click it to confirm before logging in.")
     )
 
-@app.get("/confirm-email")
+@app.get("/confirm-email/{token}")
 def confirm_email(token: str):
     logger.debug(f"Confirm email attempt with token: {token}")
     try:
