@@ -23,6 +23,7 @@ class User:
     created_at: datetime
     pwd: str
     is_confirmed: bool = False
+    credits: int = 3  # New users start with 3 free credits
 
 users = db.create(User, pk="email")  # Use email as primary key for simpler login
 

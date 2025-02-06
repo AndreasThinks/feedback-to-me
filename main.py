@@ -21,7 +21,7 @@ from pages import error_message, login_or_register_page, register_form, login_fo
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
-from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES
+from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS
 from utils import beforeware
 
 import requests
@@ -44,9 +44,15 @@ app, rt = fast_app(
 
 def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
     """Generate a themed page with appropriate navigation bar based on auth status"""
+    nav_bar = navigation_bar_logged_out
+    if auth:
+        user = users("id=?", (auth,))[0]
+        nav_bar = navigation_bar_logged_in(user)
+    else:
+        nav_bar = navigation_bar_logged_out
     return Container(
         Title(page_title),
-        navigation_bar_logged_in if auth else navigation_bar_logged_out,
+        nav_bar,
         Div(page_body, id="main-content"),
         footer_bar
     )
@@ -215,6 +221,7 @@ def get():
 
 @app.post("/login")
 def post_login(login: Login, sess):
+    print(login)
     logger.debug(f"Login attempt for email: {login.email}")
     try:
         u = users[login.email]
@@ -275,7 +282,8 @@ def post_register(email: str, first_name:str, role: str, company: str, team: str
         "team": team,
         "created_at": datetime.now(),
         "pwd": bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
-        "is_confirmed": False
+        "is_confirmed": False,
+        "credits": int(STARTING_CREDITS)
     }
     try:
         existing = users[email]
@@ -344,7 +352,7 @@ def confirm_email(token: str):
 def get(req):
     auth = req.scope.get("auth")
     logger.debug(f"Dashboard accessed by user: {auth}")
-    
+    user = users("id=?", (auth,))[0]
     processes = feedback_process_tb("user_id=?", (auth,))
     logger.debug(f"Found {len(processes)} feedback processes")
     
@@ -357,7 +365,7 @@ def get(req):
             active_html.append(p)
 
     dashboard_page_active = Container(
-        H2("Your Feedback Dashboard"),
+        H2(f"Hello {user.first_name}, you have {user.credits} credits remaining"),
         Div(
             H3("Active Feedback Collection"),
             *active_html or P("No active feedback collection processes.", cls="text-muted"),
@@ -421,6 +429,24 @@ def create_new_feedback_process(peers_emails: str, supervisors_emails: str, repo
     peers = [line.strip() for line in peers_emails.splitlines() if line.strip()]
     supervisors = [line.strip() for line in supervisors_emails.splitlines() if line.strip()]
     reports = [line.strip() for line in reports_emails.splitlines() if line.strip()]
+    
+    # Calculate total feedback requests
+    total_requests = len(peers) + len(supervisors) + len(reports)
+    
+    # Check if user has enough credits
+    user = users("id=?", (user_id,))[0]
+    if user.credits < total_requests:
+        return Titled(
+            "Insufficient Credits",
+            Container(
+                P(f"You need {total_requests} credits to send these feedback requests, but you only have {user.credits} credits."),
+                P("Please reduce the number of feedback requests or purchase more credits.")
+            )
+        )
+    
+    # Deduct credits for each request
+    user.credits -= total_requests
+    users.update(user)
     selected_qualities = [q for q in FEEDBACK_QUALITIES if data.get(f"quality_{q}")]
     process_data = {
         "id": secrets.token_hex(8),
