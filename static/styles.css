@@ -1,4 +1,4 @@
-/* Basic styling for forms and containers */
+e/* Basic styling for forms and containers */
 .registration-form {
   background: #f3f3f3;
   padding: 1.5rem;
@@ -27,4 +27,48 @@
 
 .registration-form button:hover {
   background-color: #1976D2;
+}
+
+/* Exciting landing page styles */
+.landing-page {
+   background: linear-gradient(135deg, #4a90e2, #9013fe);
+   color: #fff;
+   padding: 3rem 1rem;
+   text-align: center;
+}
+
+.landing-page h2 {
+   font-size: 2.5rem;
+   margin-bottom: 1rem;
+}
+
+.landing-page p {
+   font-size: 1.2rem;
+   margin: 1rem 0;
+}
+
+.landing-page ul {
+   list-style: none;
+   padding: 0;
+   margin: 2rem 0;
+   font-size: 1.1rem;
+}
+
+.landing-page ul li {
+   margin: 0.5rem 0;
+}
+
+.landing-page .btn-primary {
+   padding: 1rem 2rem;
+   background-color: #ff4081;
+   border: none;
+   border-radius: 5px;
+   color: #fff;
+   font-size: 1.2rem;
+   cursor: pointer;
+   transition: background-color 0.3s ease;
+}
+
+.landing-page .btn-primary:hover {
+   background-color: #e73370;
 }

@@ -21,10 +21,19 @@ def dashboard_page(user):
     )
 
 landing_page = Container(
-    H2("Welcome to the Feedback App"),
-    Button("Start Collecting Feedback", href="/login-or-register"),
-    Br(),
-    P("This is a simple app to collect feedback from your team."),
+    Div(
+         H2("Welcome to Feedback to Me!"),
+         P("Discover a revolutionary way to collect and analyze feedback from your team."),
+         Ul(
+              Li("Easy Account Setup & Secure Login"),
+              Li("Launch Dynamic Feedback Campaigns with a Click"),
+              Li("Real-Time Submissions & Comprehensive Insights"),
+              Li("Empower Your Team with Actionable Analytics")
+         ),
+         Button("Get Started", href="/login-or-register", cls="btn-primary", hx_get="/login-or-register", hx_target="#main-content", hx_swap="innerHTML"),
+         P("Join now and transform the way you gather feedback!"),
+         cls="landing-page"
+    )
 )
 
 navigation_bar_logged_out = Nav(
