@@ -327,7 +327,8 @@ def confirm_email(token: str):
         if ct.is_used:
             logger.debug("Confirmation token already used.")
             return Titled("Already Used", P("That link has already been used."))
-        if ct.expiry < datetime.now():
+        expiry_datetime = ct.expiry if isinstance(ct.expiry, datetime) else datetime.fromisoformat(ct.expiry)
+        if expiry_datetime < datetime.now():
             return Titled("Link Expired", P("Please request a new confirmation link."))
 
         user_entry = users[ct.email]
