@@ -133,7 +133,7 @@ def send_confirmation_email(recipient: str, token: str, recipient_first_name: st
         with open("email_template.txt", "r") as f:
             template = f.read()
         # We'll build a direct link to trigger /confirm-email?token=<token>
-        link = uri("confirm-email", token=token)
+        link = uri("confirm-email") + f"/{token}"
         filled_template = (
             template
             .replace("{link}", link)
