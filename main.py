@@ -757,7 +757,6 @@ def get_feedback_form(process_id: str):
         ),
         Button("Submit Feedback", type="submit"),
         hx_post="/new-feedback-form/{process_id}/submit",
-        hx_target="#feedback-status"
     )
     return Titled("Submit Feedback", form)
 
