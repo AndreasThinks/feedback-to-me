@@ -1,163 +1,188 @@
 """
-Functions for processing feedback using Google's Gemini LLM.
+Functions for processing feedback using Google's Gemini models via LangChain.
 
-Install the required SDK:
-$ pip install google.ai.generativelanguage
+Required packages:
+    pip install langchain-google-genai pydantic
+
+This module uses LangChain's ChatGoogleGenerativeAI and structured output with a Pydantic model.
 """
 
 import os
 import json
-import google.generativeai as genai
-from google.ai.generativelanguage_v1beta.types import content
-from typing import Dict, List, Optional
+import logging
+from typing import List, Dict, Optional
 
-# Configure Gemini with API key
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+from pydantic import BaseModel
+from langchain.output_parsers import PydanticOutputParser
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-def create_feedback_model():
-    """Create and configure the Gemini model for feedback processing."""
-    generation_config = {
-        "temperature": 1,
-        "top_p": 0.95,
-        "top_k": 40,
-        "max_output_tokens": 8192,
-        "response_schema": content.Schema(
-            type=content.Type.OBJECT,
-            enum=[],
-            required=["positive_themes", "negative_themes", "neutral_themes"],
-            properties={
-                "positive_themes": content.Schema(
-                    type=content.Type.ARRAY,
-                    items=content.Schema(
-                        type=content.Type.STRING,
-                    ),
-                ),
-                "negative_themes": content.Schema(
-                    type=content.Type.ARRAY,
-                    items=content.Schema(
-                        type=content.Type.STRING,
-                    ),
-                ),
-                "neutral_themes": content.Schema(
-                    type=content.Type.ARRAY,
-                    items=content.Schema(
-                        type=content.Type.STRING,
-                    ),
-                ),
-            },
-        ),
-        "response_mime_type": "application/json",
-    }
+# Configure logger for debugging
+from utils import logger
 
-    return genai.GenerativeModel(
-        model_name="gemini-2.0-flash-lite",
-        generation_config=generation_config,
-        system_instruction="You are a helpful assistant who helps collect and anonymise 360 feedback requests.",
+# Define a Pydantic model for structured output
+class ThemesResponse(BaseModel):
+    positive: List[str]
+    negative: List[str]
+    neutral: List[str]
+
+def create_feedback_llm() -> ChatGoogleGenerativeAI:
+    """
+    Creates and configures the LangChain ChatGoogleGenerativeAI model for feedback processing.
+    Uses the Google Gemini flash-lite model.
+    """
+    logger.debug("Creating LLM instance using Gemini flash-lite preview model.")
+    llm_instance = ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash-lite-preview-02-05",
+        api_key=os.getenv("GEMINI_API_KEY"),
+        temperature=1,
+        max_tokens=8192,
+        top_p=0.95,
+        top_k=40,
+        system_message="You are a helpful assistant who helps collect and anonymise 360 feedback requests."
     )
+    logger.debug("LLM instance created successfully.")
+    return llm_instance
 
 def convert_feedback_text_to_themes(feedback_text: str) -> Optional[Dict[str, List[str]]]:
     """
-    Process feedback text using Gemini to extract themes and sentiments.
+    Process feedback text using LangChain and Google Gemini to extract themes and sentiments.
     
     Args:
-        feedback_text: The raw feedback text to process
-        
+        feedback_text: The raw feedback text to process.
+    
     Returns:
-        Dictionary containing positive_themes, negative_themes, and neutral_themes lists,
-        or None if processing fails
+        Dictionary containing positive, negative, and neutral theme lists lists,
+        or None if processing fails.
     """
     try:
-        model = create_feedback_model()
-        prompt = f"""Please read the feedback paragraph below, and convert it into a series of positive, negative, and neutral traits. 
-Each trait should be a single sentence, and should ensure the feedback is totally anonymous.
+        logger.debug("Starting to convert feedback text to themes.")
+        # Create the LLM instance
+        llm = create_feedback_llm()
+        
+        # Create a structured output parser using the Pydantic model
+        parser = PydanticOutputParser(pydantic_object=ThemesResponse)
+        format_instructions = parser.get_format_instructions()
+        
+        prompt = f"""Please read the feedback paragraph below, and convert it into a series of positive, negative, and neutral traits.
+Each trait should be a single sentence. Ensure that the feedback is totally anonymous.
+Examples:
 
-Examples of positive traits: 
+Positive traits:
 - You thrive under pressure
 - You always show initiative
 - You are friendly and nice
 
-Example of negative traits:
+Negative traits:
 - You can withdraw when scared
 - You can let your temper get the better of you
 
-Example of neutral traits:
+Neutral traits:
 - You tend to work independently
 - You maintain a consistent schedule
 
-The feedback paragraph is below. Please return an array of positive, negative, and neutral traits as requested, 
-or leave the array as empty if you can't find anything matching that sentiment.
+Return the output in JSON format as described below.
+{format_instructions}
 
 Feedback:
 {feedback_text}"""
-
-        chat = model.start_chat()
-        response = chat.send_message(prompt)
         
-        # Extract JSON from response
-        json_str = response.text
-        if "```json" in json_str:
-            json_str = json_str.split("```json")[1].split("```")[0]
+        logger.debug("Sending prompt to LLM for feedback conversion.")
+        # Invoke the LLM; message order: system message is already set during llm creation.
+        messages = [("human", prompt)]
+        response = llm.invoke(messages)
+        logger.debug("Received response from LLM for feedback conversion.")
+        logger.debug(f"Raw LLM response: {response.content}")
         
-        result = json.loads(json_str)
-        
-        # Ensure all required keys exist
-        for key in ["positive_themes", "negative_themes", "neutral_themes"]:
-            if key not in result:
-                result[key] = []
-                
-        return result
+        # Parse the structured output using the Pydantic model
+        result = parser.parse(response.content)
+        # Ensure all required keys even if empty lists
+        for key in ["positive", "negative", "neutral"]:
+            if getattr(result, key) is None:
+                setattr(result, key, [])
+        logger.debug("Feedback conversion parsed successfully.")
+        return result.dict()
         
     except Exception as e:
-        print(f"Error processing feedback: {str(e)}")
+        logger.error(f"Error processing feedback: {str(e)}")
         return None
 
 def generate_completed_feedback_report(feedback_input: str) -> str:
     """
-    Takes formatted feedback data and generates a comprehensive feedback report using Gemini.
+    Takes formatted feedback data and generates a comprehensive feedback report using Google Gemini via LangChain.
     
     Args:
-        feedback_input: Formatted string containing quality ratings and themed feedback
+        feedback_input: Formatted string containing feedback data with quality ratings and themed feedback.
         
     Returns:
-        A markdown-formatted feedback report string
+        A markdown-formatted feedback report string.
     """
     try:
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            generation_config={
-                "temperature": 0.7,
-                "top_p": 0.8,
-                "top_k": 40,
-                "max_output_tokens": 8192,
-            }
+        logger.debug("Starting generation of complete feedback report.")
+        # Instantiate LLM for report generation using a different Gemini model
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash-001",
+            api_key=os.getenv("GEMINI_API_KEY"),
+            temperature=0.7,
+            max_tokens=8192,
+            top_p=0.8,
+            top_k=40
         )
-
+        
         prompt = f"""You are a professional feedback report writer. Your task is to analyze the feedback data below and create a comprehensive, well-structured feedback report in markdown format.
 
 The report should:
-1. Start with an executive summary highlighting key strengths and areas for improvement
-2. Include detailed analysis of the quality ratings, explaining what they mean
-3. Discuss the identified themes, grouping related feedback together
-4. Provide actionable recommendations based on the feedback
-5. Use a professional, constructive tone throughout
-6. Format everything in markdown for easy reading
+1. Start with an executive summary highlighting key strengths and areas for improvement.
+2. Include a detailed analysis of the quality ratings, explaining their meaning.
+3. Discuss the identified themes by grouping related feedback together.
+4. Provide actionable recommendations based on the feedback.
+5. Use a professional, constructive tone throughout.
+6. Format everything in markdown for easy reading.
+7. Do not output anything other than the markdown text.
 
 Here is the feedback data to analyze:
 
 {feedback_input}
 
 Please generate a comprehensive feedback report that is:
-- Well-structured with clear sections
-- Written in a professional tone
-- Balanced between strengths and areas for improvement
-- Focused on actionable insights
-- Formatted in markdown with appropriate headers and bullet points"""
+- Well-structured with clear sections.
+- Written in a professional tone.
+- Balanced between strengths and areas for improvement.
+- Focused on actionable insights.
+- Fully formatted in markdown with appropriate headers and bullet points.
 
-        chat = model.start_chat(history=[])
-        response = chat.send_message(prompt)
+You should return the markdown directly, with no additional formatting needed. JUST OUTPUT THE MARKDOWN."""
         
-        return response.text
+        logger.debug("Sending prompt to LLM for feedback report generation.")
+        messages = [("human", prompt)]
+        response = llm.invoke(messages)
+        logger.debug("Received response from LLM for feedback report generation.")
+        logger.debug("Feedback report generated successfully.")
+        return response.content
         
     except Exception as e:
-        print(f"Error generating feedback report: {str(e)}")
+        logger.error(f"Error generating feedback report: {str(e)}")
         return "Error: Unable to generate feedback report. Please try again later."
+
+if __name__ == "__main__":
+    logger.debug("Executing example usage from llm_functions main block.")
+    # Example usage for generating a complete feedback report
+    sample_feedback = (
+        "I find that you always show initiative but sometimes you let your temper get the better of you. "
+        "However, overall you tend to work independently and thrive under pressure."
+    )
+    
+    logger.debug("Extracting themes from sample feedback.")
+    themes = convert_feedback_text_to_themes(sample_feedback)
+    logger.debug(f"Extracted Themes: {themes}")
+    print("Extracted Themes:")
+    print(themes)
+    
+    # Generate a complete feedback report using the extracted themes combined with quality ratings
+    # Here, we assume a sample quality rating and include the themes in the input data.
+    feedback_input = f"Quality Ratings: 4.5/5\nThemes: {themes}"
+    logger.debug("Generating feedback report using provided feedback input.")
+    report = generate_completed_feedback_report(feedback_input)
+    logger.debug("Feedback Report generated:")
+    logger.debug(report)
+    print("\nFeedback Report:")
+    print(report)

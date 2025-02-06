@@ -457,7 +457,7 @@ def get(req):
         ),
         Div(
             H3("Completed Reports"),
-            completed_html or P("No completed feedback reports.", cls="text-muted")
+            *completed_html or P("No completed feedback reports.", cls="text-muted")
         )
     )
     return generate_themed_page(dashboard_page_active, auth=auth, page_title="Your Dashboard")
@@ -569,11 +569,13 @@ def get_report_status_page(process_id : str):
     
     requests = feedback_request_tb("process_id=?", (process_id,))
     submissions = feedback_submission_tb("process_id=?", (process_id,))
+    peer_submissions = feedback_request_tb("process_id=? AND user_type='peer' AND completed_at is not Null", (process_id,))
+    print('peer_submissions:', peer_submissions)
     
     submission_counts = {
-        "peer": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "peer"]),
-        "supervisor": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "supervisor"]),
-        "report": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "report"])
+        "peer": len(feedback_request_tb("process_id=? AND user_type='peer' AND completed_at is not Null", (process_id,))),
+        "supervisor": len(feedback_request_tb("process_id=? AND user_type='supervisor' AND completed_at is not Null", (process_id,))),
+        "report": len(feedback_request_tb("process_id=? AND user_type='report' AND completed_at is not Null", (process_id,))),
     }
     
     can_generate_report = (
@@ -598,7 +600,7 @@ def get_report_status_page(process_id : str):
     
     requests_list = []
     for req in requests:
-        submission = next((s for s in submissions if s.requestor_id == req.token), None)
+        submission = req.completed_at
         requests_list.append(
             Article(
                 H4(f"{req.user_type} Feedback Request"),
@@ -643,7 +645,7 @@ def get_report_status_page(process_id : str):
     if process.feedback_report:
         report_section = Article(
             H3("Feedback Report"),
-            Div(process.feedback_report, cls="markdown"),
+            Div(process.feedback_report, cls="marked"),
             id="report-section"
         )
     
@@ -662,15 +664,25 @@ def create_feedback_report_input(process_id):
     submissions = feedback_submission_tb("process_id=?", (process_id,))
     
     quality_stats = {}
+    import json
     for quality in process.qualities:
-        ratings = [s.ratings.get(quality) for s in submissions if quality in s.ratings]
-        if ratings:
-            avg = sum(ratings) / len(ratings)
-            variance = sum((r - avg) ** 2 for r in ratings) / len(ratings)
+        rating_values = []
+        for s in submissions:
+            r = s.ratings
+            if isinstance(r, str):
+                try:
+                    r = json.loads(r)
+                except Exception:
+                    r = {}
+            if quality in r:
+                rating_values.append(r[quality])
+        if rating_values:
+            avg = sum(rating_values) / len(rating_values)
+            variance = sum((r - avg) ** 2 for r in rating_values) / len(rating_values)
             quality_stats[quality] = {
                 "average": round(avg, 2),
                 "variance": round(variance, 2),
-                "count": len(ratings)
+                "count": len(rating_values)
             }
     
     themes = feedback_themes_tb("feedback_id IN (SELECT id FROM feedback_submission WHERE process_id=?)", (process_id,))
@@ -712,14 +724,15 @@ Summary Statistics:
     return report_input
 
 @app.post("/feedback-process/{process_id}/generate_completed_feedback_report")
-def create_feeback_report(process_id):
+def create_feeback_report(process_id : str):
     try:
         process = feedback_process_tb[process_id]
         submissions = feedback_submission_tb("process_id=?", (process_id,))
+
         submission_counts = {
-            "peer": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "peer"]),
-            "supervisor": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "supervisor"]),
-            "report": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "report"])
+            "peer": len(feedback_request_tb("process_id=? AND user_type='peer' AND completed_at IS NOT NULL", (process_id,))),
+            "supervisor": len(feedback_request_tb("process_id=? AND user_type='supervisor' AND completed_at IS NOT NULL", (process_id,))),
+            "report": len(feedback_request_tb("process_id=? AND user_type='report' AND completed_at IS NOT NULL", (process_id,))),
         }
         if (submission_counts["peer"] < process.min_required_peers or
             submission_counts["supervisor"] < process.min_required_supervisors or
@@ -747,7 +760,15 @@ def create_feeback_report(process_id):
 # -------------------------------
 @app.get("/new-feedback-form/{process_id}", name="new-feedback-form")
 def get_feedback_form(process_id: str):
-    introduction_text = P("{first_name} has asked for your feedback")
+
+    original_process_id = feedback_request_tb[process_id].process_id
+
+    requestor_id = feedback_process_tb[original_process_id].user_id
+    requestor_name = users("id=?", (requestor_id,))[0].first_name
+
+    introduction_text = P(f"{requestor_name} has asked for your feedback")
+
+    onward_request_id = process_id
     
     form = Form(
         Group(
@@ -756,7 +777,7 @@ def get_feedback_form(process_id: str):
             Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True)
         ),
         Button("Submit Feedback", type="submit"),
-        hx_post="/new-feedback-form/{process_id}/submit", hx_target="body", hx_swap="outerHTML"
+        hx_post=f"/new-feedback-form/{onward_request_id}/submit", hx_target="body", hx_swap="outerHTML"
     )
     return Titled("Submit Feedback", introduction_text, form)
 
@@ -764,10 +785,13 @@ def get_feedback_form(process_id: str):
 def get_feedback_submitted():
     return Titled("Feedback Submitted", P("Thank you for your feedback! It has been submitted successfully."))
 
-@app.post("/new-feedback-form/{process_id}/submit")
-def submit_feedback_form(process_id: str, feedback_text: str, data : dict):
+@app.post("/new-feedback-form/{request_token}/submit")
+def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
+    print(data)
     try:
-        feedback_request = feedback_request_tb[process_id]
+        feedback_request = feedback_request_tb[request_token]
+
+        print('found feedback request')
         
         ratings = {}
         for quality in FEEDBACK_QUALITIES:
@@ -781,8 +805,7 @@ def submit_feedback_form(process_id: str, feedback_text: str, data : dict):
         
         submission_data = {
             "id": secrets.token_hex(8),
-            "requestor_id": process_id,
-            "provider_id": None,
+            "request_id": feedback_request.process_id,
             "feedback_text": feedback_text,
             "ratings": ratings,
             "process_id": feedback_request.process_id,
@@ -793,22 +816,25 @@ def submit_feedback_form(process_id: str, feedback_text: str, data : dict):
         feedback_themes = convert_feedback_text_to_themes(feedback_text)
         if feedback_themes:
             for sentiment in ["positive", "negative", "neutral"]:
-                for theme in feedback_themes[sentiment]:
-                    theme_data = {
-                        "id": secrets.token_hex(8),
-                        "feedback_id": submission.id,
-                        "theme": theme,
-                        "sentiment": sentiment,
-                        "created_at": datetime.now()
-                    }
-                    feedback_themes_tb.insert(theme_data)
+                if len(feedback_themes[sentiment]) > 0:
+                    for theme in feedback_themes[sentiment]:
+                        theme_data = {
+                            "id": secrets.token_hex(8),
+                            "feedback_id": submission.id,
+                            "theme": theme,
+                            "sentiment": sentiment,
+                            "created_at": datetime.now()
+                        }
+                        feedback_themes_tb.insert(theme_data)
         
         process = feedback_process_tb[feedback_request.process_id]
         feedback_process_tb.update(
             {"feedback_count": process.feedback_count + 1},
             feedback_request.process_id
         )
-        
+
+        feedback_request_tb.update(feedback_request, completed_at=datetime.now(), token=request_token)
+
         return RedirectResponse("/feedback-submitted", status_code=303)
         
     except Exception as e:

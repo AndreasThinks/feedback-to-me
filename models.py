@@ -58,15 +58,14 @@ class FeedbackRequest:
     process_id: str  # Link back to FeedbackProcess; may be None for standalone requests.
     expiry: datetime
     email_sent: Optional[datetime] = None
-
+    completed_at: Optional[datetime] = None
 
 feedback_request_tb = db.create(FeedbackRequest, pk="token")
 
 # FeedbackSubmission table: stores completed feedback submissions in response to the request
 class FeedbackSubmission:
     id: str
-    requestor_id: str
-    provider_id: str  # May be None for anonymous submissions
+    request_id: str
     feedback_text: str
     ratings: dict     # Expected to be a JSON-like dict for quality ratings
     process_id: str    # UUID linking to FeedbackProcess table
