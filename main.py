@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 from fasthtml.common import *
 from datetime import datetime, timedelta
+dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
+
 import secrets, os
 import bcrypt
 import logging
 from datetime import datetime
-
 
 # Configure logging based on environment variable
 log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -15,15 +16,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login
-from pages import dashboard_page, login_or_register_page,register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
+from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login, confirm_tokens_tb
+from pages import error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
-
-from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES
-
+from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS
 from utils import beforeware
+
+import requests
+import stripe
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
 
 # --------------------
@@ -33,6 +36,7 @@ app, rt = fast_app(
     before=beforeware,
     hdrs=(
         MarkdownJS(),  # Allows rendering markdown in feedback text, if needed.
+        Link(rel='stylesheet', href='/static/styles.css', type='text/css')
     ),
     exception_handlers={HTTPException: lambda req, exc: Response(content="", status_code=exc.status_code, headers=exc.headers)}
 )
@@ -43,12 +47,26 @@ app, rt = fast_app(
 
 def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
     """Generate a themed page with appropriate navigation bar based on auth status"""
-    return Container(
-        Title(page_title),
-        navigation_bar_logged_in if auth else navigation_bar_logged_out,
+    nav_bar = navigation_bar_logged_out
+    if auth:
+        user = users("id=?", (auth,))[0]
+        nav_bar = navigation_bar_logged_in(user)
+    else:
+        nav_bar = navigation_bar_logged_out
+    return (Title(page_title),
+    Favicon('static/favicon.ico', dark_icon='static/favicon.ico'),
+    Container(
+        nav_bar,
         Div(page_body, id="main-content"),
         footer_bar
-    )
+    ))
+
+def generate_external_link(url):
+    """Find the base domain env var, if it exists, and return the link with the base domain as as a string"""
+    base_domain = os.environ.get("BASE_URL")
+    if base_domain:
+        return f"https://{base_domain}/{url}"
+    return url
 
 def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
     """
@@ -65,11 +83,112 @@ def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
     })
     return uri("new-feedback-form", token=token)
 
+def send_feedback_email(recipient: str,  link: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
+    try:
+        link = generate_external_link(link)
+        with open("feedback_email_template.txt", "r") as f:
+            template = f.read()
+        filled_template = (
+            template
+            .replace("{link}", link)
+            .replace("{recipient_first_name}", recipient_first_name)
+            .replace("{recipient_company}", recipient_company)
+        )
+
+        endpoint = os.environ.get("SMTP2GO_EMAIL_ENDPOINT", "https://api.smtp2go.com/v3")
+        api_key = os.environ.get("SMTP2GO_API_KEY")
+        if not api_key:
+            logger.error("SMTP2GO_API_KEY is missing.")
+            return False
+
+        payload = {
+            "sender": "noreply@feedback-to.me",
+            "to": [recipient],
+            "subject": "Feedback Request from Feedback to Me",
+            "text_body": filled_template
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Smtp2go-Api-Key": api_key
+        }
+
+        logger.info(f"Sending email to {recipient} using SMTP2GO with payload: {payload}")
+        response = requests.post(endpoint.rstrip("/") + "/email/send", json=payload, headers=headers)
+
+        if response.status_code == 200:
+            result_json = response.json()
+            succeeded = result_json.get("data", {}).get("succeeded", 0)
+            if succeeded == 1:
+                logger.info("Email sent successfully via SMTP2GO.")
+                return True
+            else:
+                logger.error(f"SMTP2GO error: {result_json}")
+                return False
+        else:
+            logger.error(f"Error sending email: {response.status_code} - {response.text}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Exception during sending email for {recipient}: {str(e)}")
+        return False
+
+def send_confirmation_email(recipient: str, token: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
+    """
+    Sends an email with a confirmation link containing the given token.
+    """
+    try:
+        with open("confirmation_email_template.txt", "r") as f:
+            template = f.read()
+        # We'll build a direct link to trigger /confirm-email?token=<token>
+        link = generate_external_link(("confirm-email") + f"/{token}")
+        filled_template = (
+            template
+            .replace("{link}", link)
+            .replace("{recipient_first_name}", recipient_first_name)
+            .replace("{recipient_company}", recipient_company)
+        )
+
+        endpoint = os.environ.get("SMTP2GO_EMAIL_ENDPOINT", "https://api.smtp2go.com/v3")
+        api_key = os.environ.get("SMTP2GO_API_KEY")
+        if not api_key:
+            logger.error("SMTP2GO_API_KEY is missing.")
+            return False
+
+        payload = {
+            "sender": "noreply@feedback-to.me",
+            "to": [recipient],
+            "subject": "Please Confirm Your Email Address",
+            "text_body": filled_template
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Smtp2go-Api-Key": api_key
+        }
+
+        logger.info(f"Sending confirmation email to {recipient} with payload: {payload}")
+        response = requests.post(endpoint.rstrip("/") + "/email/send", json=payload, headers=headers)
+
+        if response.status_code == 200:
+            result_json = response.json()
+            succeeded = result_json.get("data", {}).get("succeeded", 0)
+            if succeeded == 1:
+                logger.info("Confirmation email sent successfully.")
+                return True
+            else:
+                logger.error(f"SMTP2GO error sending confirmation email: {result_json}")
+                return False
+        else:
+            logger.error(f"Error sending confirmation email: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Exception while sending confirmation email to {recipient}: {str(e)}")
+        return False
+
 # -----------------------
 # static pages
 # -----------------------
-
-# this is your landing page - it should have some markdown, and a link to the key pages, as well as a login button
 
 @app.get("/")
 def get(req, sess):
@@ -90,11 +209,11 @@ def get():
 
 @app.get("/about")
 def get():
-    return about_page
+    return generate_themed_page(about_page)
 
 @app.get("/privacy-policy")
 def get():
-    return privacy_policy_page
+    return generate_themed_page(privacy_policy_page)
 
 # -----------------------
 # User Registration and Login Pages
@@ -102,7 +221,6 @@ def get():
 
 @app.get("/login-or-register")
 def get():
-
     return login_or_register_page 
 
 @app.get("/login-form")
@@ -115,21 +233,30 @@ def get():
 
 @app.post("/login")
 def post_login(login: Login, sess):
+    print(login)
     logger.debug(f"Login attempt for email: {login.email}")
     try:
         u = users[login.email]
         logger.debug(f"User found: {login.email}")
-    except Exception as e:
+    except Exception:
         logger.warning(f"Login failed - user not found: {login.email}")
-        return RedirectResponse("/login-form", status_code=303)
+        return error_message
     
     if not bcrypt.checkpw(login.pwd.encode("utf-8"), u.pwd.encode("utf-8")):
         logger.warning(f"Login failed - invalid password for user: {login.email}")
-        return RedirectResponse("/login-form", status_code=303)
+        return error_message
     
+    # Check if user is confirmed
+    if not u.is_confirmed:
+        logger.warning(f"Login failed - user not confirmed: {login.email}")
+        return Titled(
+            "Email Not Confirmed",
+            P("Please check your email for a confirmation link. You cannot log in until you confirm.")
+        )
+
     sess["auth"] = u.id
     logger.info(f"User successfully logged in: {login.email}")
-    return RedirectResponse("/dashboard", status_code=303)
+    return Redirect("/dashboard")
 
 @rt("/logout")
 def get_logout(sess):
@@ -147,7 +274,6 @@ def get(req):
         return RedirectResponse("/dashboard", status_code=303)
     logger.debug("Serving registration form")
     return register_form
-
 
 # -----------------------
 # Routes: User Registration
@@ -167,29 +293,144 @@ def post_register(email: str, first_name:str, role: str, company: str, team: str
         "company": company,
         "team": team,
         "created_at": datetime.now(),
-        "pwd": bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        "pwd": bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
+        "is_confirmed": False,
+        "credits": int(STARTING_CREDITS)
     }
     try:
-        u = users[email]
+        existing = users[email]
         logger.warning(f"Registration failed - email already exists: {email}")
+        return Titled("Registration Failed", P("That email is already in use."))
     except Exception:
-        u = users.insert(user_data)
-        logger.info(f"New user registered: {email}")
-    
-    sess["auth"] = u.id
-    logger.debug(f"Session auth set for new user: {u.id}")
-    return RedirectResponse("/", status_code=303)
+        new_user = users.insert(user_data)
+        logger.info(f"New user registered (unconfirmed): {email}")
+
+        # Generate and store a new confirmation token
+        token = secrets.token_urlsafe()
+        expiry = datetime.now() + timedelta(days=7)
+        confirm_tokens_tb.insert({
+            "token": token,
+            "email": email,
+            "expiry": expiry,
+            "is_used": False
+        })
+        if dev_mode:
+            logger.warning("DEV_MODE is enabled; automatically confirming new user.")
+            new_user.is_confirmed = True
+            users.update(new_user)
+        else:
+            # Send them a confirmation link
+            send_confirmation_email(email, token, first_name, company)
+
+    return Titled(
+        "Check Your Email",
+        P("We've sent a confirmation link to your email. Please click it to confirm before logging in.")
+    )
+
+@app.get("/confirm-email/{token}")
+def confirm_email(token: str):
+    logger.debug(f"Confirm email attempt with token: {token}")
+    try:
+        ct = confirm_tokens_tb[token]
+        if ct.is_used:
+            logger.debug("Confirmation token already used.")
+            return Titled("Already Used", P("That link has already been used."))
+        expiry_datetime = ct.expiry if isinstance(ct.expiry, datetime) else datetime.fromisoformat(ct.expiry)
+        if expiry_datetime < datetime.now():
+            return Titled("Link Expired", P("Please request a new confirmation link."))
+
+        user_entry = users[ct.email]
+        if user_entry.is_confirmed:
+            logger.debug("User is already confirmed.")
+            return Titled("Already Confirmed", P("Your email is already confirmed."))
+
+        # Mark user as confirmed
+        user_entry.is_confirmed = True
+        users.update(user_entry, ct.email)
+
+        # Mark the token as used
+        ct.is_used = True
+        confirm_tokens_tb.update(ct, ct.token)
+
+        logger.info(f"User {ct.email} confirmed email successfully.")
+        return Titled("Email Confirmed", P("Thank you! Your email has been confirmed. You may now log in."))
+    except Exception as e:
+        logger.error(f"Error confirming email: {str(e)}")
+        return Titled("Invalid Link", P("That confirmation link isn't valid or doesn't exist."))
+
+@app.get("/buy-credits")
+def buy_credits(req, sess):
+    auth = req.scope.get("auth")
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    # Display a simple form for purchasing extra credits
+    form = Form(
+         Input(name="credits", type="number", min="1", placeholder="Number of credits"),
+         Button("Buy Credits"),
+         action="/create-checkout-session", method="post"
+    )
+    return Titled("Buy Credits", form)
+
+@app.post("/create-checkout-session")
+def create_checkout_session(req, sess, credits: int):
+    auth = req.scope.get("auth")
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    from config import COST_PER_CREDIT_USD
+    # Calculate total amount in cents
+    amount = credits * COST_PER_CREDIT_USD * 100
+    # Build success and cancel URLs using uri helper
+    success_url = uri("payment-success") + "?session_id={CHECKOUT_SESSION_ID}"
+    cancel_url = uri("payment-cancel")
+    checkout_session = stripe.checkout.Session.create(
+         payment_method_types=["card"],
+         line_items=[{
+             "price_data": {
+                "currency": "usd",
+                "product_data": {
+                    "name": f"{credits} Extra Credit{'s' if credits > 1 else ''}"
+                },
+                "unit_amount": amount,
+             },
+             "quantity": 1,
+         }],
+         mode="payment",
+         success_url=success_url,
+         cancel_url=cancel_url,
+         metadata={
+             "credits": credits,
+             "user_id": auth
+         }
+    )
+    return RedirectResponse(checkout_session.url, status_code=303)
+
+@app.get("/payment-success")
+def payment_success(req, sess, session_id: str):
+    try:
+         session = stripe.checkout.Session.retrieve(session_id)
+         credits = int(session.metadata.get("credits", 0))
+         user_id = session.metadata.get("user_id")
+         if user_id:
+             user = users("id=?", (user_id,))[0]
+             user.credits += credits
+             users.update(user)
+         message = f"Payment successful! {credits} credits have been added to your account."
+         return Titled("Payment Success", P(message), A("Go to Dashboard", href="/dashboard"))
+    except Exception as e:
+         return Titled("Error", P("Error processing payment."))
+
+@app.get("/payment-cancel")
+def payment_cancel():
+    return Titled("Payment Cancelled", P("Your payment was cancelled."), A("Go back", href="/dashboard"))
 
 # -----------------------
 # Routes: Dashboard
 # -----------------------
-
 @app.get("/dashboard")
 def get(req):
     auth = req.scope.get("auth")
     logger.debug(f"Dashboard accessed by user: {auth}")
-    
-    # Get user's feedback processes
+    user = users("id=?", (auth,))[0]
     processes = feedback_process_tb("user_id=?", (auth,))
     logger.debug(f"Found {len(processes)} feedback processes")
     
@@ -202,7 +443,9 @@ def get(req):
             active_html.append(p)
 
     dashboard_page_active = Container(
-        H2("Your Feedback Dashboard"),
+        H2(f"Hi {user.first_name}!"),
+        P("Welcome to your dashboard. Here you can manage your feedback collection processes."),
+        P(f"You have {user.credits} credits remaining"),
         Div(
             H3("Active Feedback Collection"),
             *active_html or P("No active feedback collection processes.", cls="text-muted"),
@@ -214,16 +457,14 @@ def get(req):
         ),
         Div(
             H3("Completed Reports"),
-            completed_html or P("No completed feedback reports.", cls="text-muted")
+            *completed_html or P("No completed feedback reports.", cls="text-muted")
         )
     )
     return generate_themed_page(dashboard_page_active, auth=auth, page_title="Your Dashboard")
 
-
 # -----------------------
 # Routes: New Feedback Process
 # -----------------------
-
 @app.get("/start-new-feedback-process")
 def get_new_feedback():
     form = Form(
@@ -268,6 +509,24 @@ def create_new_feedback_process(peers_emails: str, supervisors_emails: str, repo
     peers = [line.strip() for line in peers_emails.splitlines() if line.strip()]
     supervisors = [line.strip() for line in supervisors_emails.splitlines() if line.strip()]
     reports = [line.strip() for line in reports_emails.splitlines() if line.strip()]
+    
+    # Calculate total feedback requests
+    total_requests = len(peers) + len(supervisors) + len(reports)
+    
+    # Check if user has enough credits
+    user = users("id=?", (user_id,))[0]
+    if user.credits < total_requests:
+        return Titled(
+            "Insufficient Credits",
+            Container(
+                P(f"You need {total_requests} credits to send these feedback requests, but you only have {user.credits} credits."),
+                P("Please reduce the number of feedback requests or purchase more credits.")
+            )
+        )
+    
+    # Deduct credits for each request
+    user.credits -= total_requests
+    users.update(user)
     selected_qualities = [q for q in FEEDBACK_QUALITIES if data.get(f"quality_{q}")]
     process_data = {
         "id": secrets.token_hex(8),
@@ -284,53 +543,48 @@ def create_new_feedback_process(peers_emails: str, supervisors_emails: str, repo
     # Create feedback requests for each role.
     for email in peers:
         link = generate_magic_link(email, process_id=process_data["id"])
-        token = link.replace("/feedback/submit/", "")
+        token = link.replace("new-feedback-form/token=", "")
+        print('token:', token)
         feedback_request_tb.update({"user_type": "peer"}, token=token)
     for email in supervisors:
         link = generate_magic_link(email, process_id=process_data["id"])
-        token = link.replace("/feedback/submit/", "")
+        token = link.replace("new-feedback-form/token=", "")
         feedback_request_tb.update({"user_type": "supervisor"}, token=token)
     for email in reports:
         link = generate_magic_link(email, process_id=process_data["id"])
-        token = link.replace("/feedback/submit/", "")
+        token = link.replace("new-feedback-form/token=", "")
         feedback_request_tb.update({"user_type": "report"}, token=token)
     return RedirectResponse("/dashboard", status_code=303)
 
 # -----------------------
 # Routes: Existing Feedback Process
 # -----------------------
-
 @app.get("/feedback-process/{process_id}")
 def get_report_status_page(process_id : str):
-    # Get the feedback process
     try:
         process = feedback_process_tb[process_id]
-    except Exception as e:
+    except Exception:
         logger.warning(f"Feedback process not found: {process_id}")
         return RedirectResponse("/dashboard", status_code=303)
     
-    # Get all feedback requests for this process
     requests = feedback_request_tb("process_id=?", (process_id,))
-    
-    # Get all feedback submissions for this process
     submissions = feedback_submission_tb("process_id=?", (process_id,))
+    peer_submissions = feedback_request_tb("process_id=? AND user_type='peer' AND completed_at is not Null", (process_id,))
+    print('peer_submissions:', peer_submissions)
     
-    # Count submissions by type
     submission_counts = {
-        "peer": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "peer"]),
-        "supervisor": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "supervisor"]),
-        "report": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "report"])
+        "peer": len(feedback_request_tb("process_id=? AND user_type='peer' AND completed_at is not Null", (process_id,))),
+        "supervisor": len(feedback_request_tb("process_id=? AND user_type='supervisor' AND completed_at is not Null", (process_id,))),
+        "report": len(feedback_request_tb("process_id=? AND user_type='report' AND completed_at is not Null", (process_id,))),
     }
     
-    # Check if we have enough submissions to generate a report
     can_generate_report = (
         submission_counts["peer"] >= process.min_required_peers and
         submission_counts["supervisor"] >= process.min_required_supervisors and
         submission_counts["report"] >= process.min_required_reports and
-        not process.feedback_report  # Only if report doesn't exist yet
+        not process.feedback_report
     )
     
-    # Create status sections
     status_section = Article(
         H2("Feedback Process Status"),
         P(f"Process ID: {process.id}"),
@@ -344,24 +598,21 @@ def get_report_status_page(process_id : str):
         )
     )
     
-    # Create requests section showing each request and its status
     requests_list = []
     for req in requests:
-        # Find matching submission if it exists
-        submission = next((s for s in submissions if s.requestor_id == req.token), None)
-        
+        submission = req.completed_at
         requests_list.append(
             Article(
-                H4(f"{req.user_type.title()} Feedback Request"),
+                H4(f"{req.user_type} Feedback Request"),
                 P(f"Email: {req.email}"),
                 P(f"Status: {'Submitted' if submission else 'Pending'}"),
                 P("Magic Link: ",
                   A("Click to open feedback form", link=uri("new-feedback-form", process_id=req.token)),
                   " ",
-                  Button("Copy", onclick=f"navigator.clipboard.writeText('{uri('new-feedback-form', process_id=req.token)}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }});"),
+                  Button("Copy to Clipboard", cls='copy-to-clipboard-button', onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
                   " ",
                   Div(
-                    (P(f"Email sent on {req['email_sent']}") 
+                    (P(f"Email sent on {req.email_sent}") 
                       if req.email_sent
                       else Button("Send Email", 
                           hx_post=f"/feedback-process/{process_id}/send_email?token={req.token}", 
@@ -380,7 +631,6 @@ def get_report_status_page(process_id : str):
         *requests_list
     )
     
-    # Add report generation button if eligible
     action_section = Div()
     if can_generate_report:
         action_section = Div(
@@ -391,12 +641,11 @@ def get_report_status_page(process_id : str):
             )
         )
     
-    # Show existing report if it exists
     report_section = Div(id="report-section")
     if process.feedback_report:
         report_section = Article(
             H3("Feedback Report"),
-            Div(process.feedback_report, cls="markdown"),
+            Div(process.feedback_report, cls="marked"),
             id="report-section"
         )
     
@@ -411,42 +660,42 @@ def get_report_status_page(process_id : str):
     )
 
 def create_feedback_report_input(process_id):
-    # Get the feedback process
     process = feedback_process_tb[process_id]
-    
-    # Get all submissions for this process
     submissions = feedback_submission_tb("process_id=?", (process_id,))
     
-    # Calculate statistics for each quality
     quality_stats = {}
+    import json
     for quality in process.qualities:
-        ratings = [s.ratings.get(quality) for s in submissions if quality in s.ratings]
-        if ratings:
-            avg = sum(ratings) / len(ratings)
-            # Calculate variance
-            variance = sum((r - avg) ** 2 for r in ratings) / len(ratings)
+        rating_values = []
+        for s in submissions:
+            r = s.ratings
+            if isinstance(r, str):
+                try:
+                    r = json.loads(r)
+                except Exception:
+                    r = {}
+            if quality in r:
+                rating_values.append(r[quality])
+        if rating_values:
+            avg = sum(rating_values) / len(rating_values)
+            variance = sum((r - avg) ** 2 for r in rating_values) / len(rating_values)
             quality_stats[quality] = {
                 "average": round(avg, 2),
                 "variance": round(variance, 2),
-                "count": len(ratings)
+                "count": len(rating_values)
             }
     
-    # Get all themes for this process's feedback
     themes = feedback_themes_tb("feedback_id IN (SELECT id FROM feedback_submission WHERE process_id=?)", (process_id,))
-    
-    # Group themes by sentiment
     themed_feedback = {
         "positive": [t.theme for t in themes if t.sentiment == "positive"],
         "negative": [t.theme for t in themes if t.sentiment == "negative"],
         "neutral": [t.theme for t in themes if t.sentiment == "neutral"]
     }
     
-    # Format the input for the LLM
     report_input = f"""Feedback Report Summary for Process {process_id}
 
 Quality Ratings:
 {'-' * 40}"""
-
     for quality, stats in quality_stats.items():
         report_input += f"""
 {quality}:
@@ -472,39 +721,30 @@ Summary Statistics:
 - Total Submissions: {len(submissions)}
 - Total Themes Identified: {len(themes)}
 """
-    
     return report_input
 
 @app.post("/feedback-process/{process_id}/generate_completed_feedback_report")
-def create_feeback_report(process_id):
+def create_feeback_report(process_id : str):
     try:
-        # Get the process to verify it exists and check status
         process = feedback_process_tb[process_id]
-        
-        # Verify we have enough submissions
         submissions = feedback_submission_tb("process_id=?", (process_id,))
+
         submission_counts = {
-            "peer": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "peer"]),
-            "supervisor": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "supervisor"]),
-            "report": len([s for s in submissions if feedback_request_tb[s.requestor_id].user_type == "report"])
+            "peer": len(feedback_request_tb("process_id=? AND user_type='peer' AND completed_at IS NOT NULL", (process_id,))),
+            "supervisor": len(feedback_request_tb("process_id=? AND user_type='supervisor' AND completed_at IS NOT NULL", (process_id,))),
+            "report": len(feedback_request_tb("process_id=? AND user_type='report' AND completed_at IS NOT NULL", (process_id,))),
         }
-        
         if (submission_counts["peer"] < process.min_required_peers or
             submission_counts["supervisor"] < process.min_required_supervisors or
             submission_counts["report"] < process.min_required_reports):
             logger.warning(f"Attempted to generate report without sufficient feedback for process: {process_id}")
             return "Not enough feedback submissions to generate report", 400
-        
-        # Generate the report input
+
         feedback_report_input = create_feedback_report_input(process_id)
-        
-        # Generate the report using the LLM
         feedback_report = generate_completed_feedback_report(feedback_report_input)
         
-        # Save the report to the database
         feedback_process_tb.update({"feedback_report": feedback_report}, process_id)
         
-        # Return the report section for HTMX to update
         return Article(
             H3("Feedback Report"),
             Div(feedback_report, cls="markdown"),
@@ -520,9 +760,15 @@ def create_feeback_report(process_id):
 # -------------------------------
 @app.get("/new-feedback-form/{process_id}", name="new-feedback-form")
 def get_feedback_form(process_id: str):
-    # this is a page for external users to submit feedback. It should show a bit of intro text, and then it should shown the form and a submit button
-    # once the feedback is submitted and saved to DB, take them to the thank you page.
-    introduction_text = "{first_name} has asked for your feedback"
+
+    original_process_id = feedback_request_tb[process_id].process_id
+
+    requestor_id = feedback_process_tb[original_process_id].user_id
+    requestor_name = users("id=?", (requestor_id,))[0].first_name
+
+    introduction_text = P(f"{requestor_name} has asked for your feedback")
+
+    onward_request_id = process_id
     
     form = Form(
         Group(
@@ -531,38 +777,35 @@ def get_feedback_form(process_id: str):
             Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True)
         ),
         Button("Submit Feedback", type="submit"),
-        hx_post="/new-feedback-form/{process_id}/submit",
-        hx_target="#feedback-status"
+        hx_post=f"/new-feedback-form/{onward_request_id}/submit", hx_target="body", hx_swap="outerHTML"
     )
-    return Titled("Submit Feedback", form)
-
+    return Titled("Submit Feedback", introduction_text, form)
 
 @app.get("/feedback-submitted")
 def get_feedback_submitted():
-    return Titled("Feedback Submitted", P("Thank you for your feedback! It has been submitted successfully. if You'd like to do this to, go to ..."))
+    return Titled("Feedback Submitted", P("Thank you for your feedback! It has been submitted successfully."))
 
-@app.post("/new-feedback-form/{process_id}/submit")
-def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
+@app.post("/new-feedback-form/{request_token}/submit")
+def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
+    print(data)
     try:
-        # Get the feedback request to verify token and get process_id
-        feedback_request = feedback_request_tb[process_id]
+        feedback_request = feedback_request_tb[request_token]
+
+        print('found feedback request')
         
-        # Create ratings dictionary from form data
         ratings = {}
         for quality in FEEDBACK_QUALITIES:
             rating_key = f"rating_{quality.lower()}"
-            if rating_key in kwargs:
+            if rating_key in data:
                 try:
-                    ratings[quality] = int(kwargs[rating_key])
+                    ratings[quality] = int(data[rating_key])
                 except (ValueError, TypeError):
-                    logger.warning(f"Invalid rating value for {quality}: {kwargs[rating_key]}")
+                    logger.warning(f"Invalid rating value for {quality}: {data[rating_key]}")
                     continue
         
-        # Store the feedback submission
         submission_data = {
             "id": secrets.token_hex(8),
-            "requestor_id": process_id,
-            "provider_id": None,  # Anonymous submission
+            "request_id": feedback_request.process_id,
             "feedback_text": feedback_text,
             "ratings": ratings,
             "process_id": feedback_request.process_id,
@@ -570,75 +813,41 @@ def submit_feedback_form(process_id: str, feedback_text: str, **kwargs):
         }
         submission = feedback_submission_tb.insert(submission_data)
         
-        # Generate themes using the LLM
         feedback_themes = convert_feedback_text_to_themes(feedback_text)
         if feedback_themes:
-            # Store each theme in the database
             for sentiment in ["positive", "negative", "neutral"]:
-                for theme in feedback_themes[sentiment]:
-                    theme_data = {
-                        "id": secrets.token_hex(8),
-                        "feedback_id": submission.id,
-                        "theme": theme,
-                        "sentiment": sentiment,
-                        "created_at": datetime.now()
-                    }
-                    feedback_themes_tb.insert(theme_data)
+                if len(feedback_themes[sentiment]) > 0:
+                    for theme in feedback_themes[sentiment]:
+                        theme_data = {
+                            "id": secrets.token_hex(8),
+                            "feedback_id": submission.id,
+                            "theme": theme,
+                            "sentiment": sentiment,
+                            "created_at": datetime.now()
+                        }
+                        feedback_themes_tb.insert(theme_data)
         
-        # Increment the feedback count for the process
         process = feedback_process_tb[feedback_request.process_id]
         feedback_process_tb.update(
             {"feedback_count": process.feedback_count + 1},
             feedback_request.process_id
         )
-        
-        # Redirect to thank you page
+
+        feedback_request_tb.update(feedback_request, completed_at=datetime.now(), token=request_token)
+
         return RedirectResponse("/feedback-submitted", status_code=303)
         
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         return "Error submitting feedback. Please try again.", 500
 
-import requests
-
-def send_feedback_email(recipient: str, link: str) -> bool:
-    try:
-        # Read the email template from the external file
-        with open("email_template.txt", "r") as f:
-            template = f.read()
-        # Substitute the {link} placeholder with the actual magic link
-        filled_template = template.replace("{link}", link)
-        # Construct the payload for the GCP Sengrip API
-        payload = {
-            "to": recipient,
-            "subject": "Feedback Request from Feedback to Me",
-            "body": filled_template
-        }
-        # Check for Sengrip API key in environment and set Authorization header if available
-        api_key = os.environ.get("SENGRIP_API_KEY")
-        headers = {"Content-Type": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-        logger.info(f"Sending email to {recipient} using Sengrip with payload: {payload} and headers: {headers}")
-        response = requests.post("https://sengrip.googleapis.com/sendEmail", json=payload, headers=headers)
-        if response.status_code == 200:
-            logger.info("Email sent successfully via Sengrip.")
-            return True
-        else:
-            logger.error(f"Error sending email: {response.status_code} - {response.text}")
-            return False
-    except Exception as e:
-        logger.error(f"Exception during sending email for {recipient}: {str(e)}")
-        return False
-
 @app.post("/feedback-process/{process_id}/send_email")
-def send_feedback_email_route(process_id: str, token: str):
+def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):
     try:
         req = feedback_request_tb[token]
         link = uri("new-feedback-form", process_id=req.token)
-        success = send_feedback_email(req.email, link)
+        success = send_feedback_email(req.email, link, recipient_first_name, recipient_company)
         if success:
-            # Mark the request as having been emailed by updating the record with the current timestamp.
             feedback_request_tb.update({"email_sent": datetime.now()}, token=token)
             return P("Email sent successfully!")
         else:
@@ -647,8 +856,7 @@ def send_feedback_email_route(process_id: str, token: str):
         logger.error(f"Error sending email for token {token}: {str(e)}")
         return P("Error sending email."), 500
 
-# -------------
 # Start the App
 # -------------
 if __name__ == "__main__":
-    serve()
+    serve(port=8080)

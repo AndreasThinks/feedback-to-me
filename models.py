@@ -17,11 +17,13 @@ class User:
     id: str
     first_name: str
     email: str
-    role: str
-    company: str
-    team: str
+    role: Optional[str]
+    company: Optional[str]
+    team: Optional[str]
     created_at: datetime
     pwd: str
+    is_confirmed: bool = False
+    credits: int = 3  # New users start with 3 free credits
 
 users = db.create(User, pk="email")  # Use email as primary key for simpler login
 
@@ -40,7 +42,7 @@ class FeedbackProcess:
 
 @patch
 def __ft__(self: FeedbackProcess):
-    link = A(f"Feedback Process {self.id}", hx_get= f'/feedback-process/{self.id}', hx_target="#main-content", id=f'process-{self.id}')   
+    link = AX(f"Feedback Process {self.id}", hx_get= f'/feedback-process/{self.id}', hx_target="#main-content", id=f'process-{self.id}')   
     status_str = "Complete" if self.feedback_report else "In Progress"
     cts = (status_str, " - ", link)
     return Li(*cts, id=f'process-{self.id}')
@@ -56,15 +58,14 @@ class FeedbackRequest:
     process_id: str  # Link back to FeedbackProcess; may be None for standalone requests.
     expiry: datetime
     email_sent: Optional[datetime] = None
-
+    completed_at: Optional[datetime] = None
 
 feedback_request_tb = db.create(FeedbackRequest, pk="token")
 
 # FeedbackSubmission table: stores completed feedback submissions in response to the request
 class FeedbackSubmission:
     id: str
-    requestor_id: str
-    provider_id: str  # May be None for anonymous submissions
+    request_id: str
     feedback_text: str
     ratings: dict     # Expected to be a JSON-like dict for quality ratings
     process_id: str    # UUID linking to FeedbackProcess table
@@ -82,6 +83,15 @@ class FeedbackTheme:
     created_at: datetime
 
 feedback_themes_tb = db.create(FeedbackTheme, pk="id")
+
+@dataclass
+class ConfirmToken:
+    token: str
+    email: str
+    expiry: datetime
+    is_used: bool = False
+
+confirm_tokens_tb = db.create(ConfirmToken, pk="token")
 
 # Other helper functions
 

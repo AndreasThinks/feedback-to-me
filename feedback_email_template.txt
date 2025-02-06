@@ -1,0 +1,7 @@
+Hello {recipient_first_name},
+
+Your company {recipient_company} has requested your feedback. Please fill out the form at the following link:
+{link}
+
+Thank you,
+The Feedback to Me Team
