@@ -647,8 +647,7 @@ def send_feedback_email_route(process_id: str, token: str):
         logger.error(f"Error sending email for token {token}: {str(e)}")
         return P("Error sending email."), 500
 
-# -------------
 # Start the App
 # -------------
 if __name__ == "__main__":
-    serve()
+    serve(port=8080)
