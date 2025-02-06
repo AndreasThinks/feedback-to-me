@@ -1,0 +1,7 @@
+Hello {recipient_first_name},
+
+Please confirm your address by clicking the link below.
+{link}
+
+Thank you,
+The Feedback to Me Team

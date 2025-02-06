@@ -61,6 +61,13 @@ def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
         footer_bar
     ))
 
+def generate_external_link(url):
+    """Find the base domain env var, if it exists, and return the link with the base domain as as a string"""
+    base_domain = os.environ.get("BASE_DOMAIN")
+    if base_domain:
+        return f"https://{base_domain}{url}"
+    return url
+
 def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
     """
     Generates a unique magic link token, stores it with expiry in the FeedbackRequest table, and returns the link.
@@ -78,7 +85,8 @@ def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
 
 def send_feedback_email(recipient: str,  link: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
     try:
-        with open("email_template.txt", "r") as f:
+        link = generate_external_link(link)
+        with open("feedback_email_template.txt", "r") as f:
             template = f.read()
         filled_template = (
             template
@@ -130,10 +138,10 @@ def send_confirmation_email(recipient: str, token: str, recipient_first_name: st
     Sends an email with a confirmation link containing the given token.
     """
     try:
-        with open("email_template.txt", "r") as f:
+        with open("confirmation_email_template.txt", "r") as f:
             template = f.read()
         # We'll build a direct link to trigger /confirm-email?token=<token>
-        link = uri("confirm-email") + f"/{token}"
+        link = generate_external_link(("confirm-email") + f"{token}")
         filled_template = (
             template
             .replace("{link}", link)
@@ -599,7 +607,7 @@ def get_report_status_page(process_id : str):
                 P("Magic Link: ",
                   A("Click to open feedback form", link=uri("new-feedback-form", process_id=req.token)),
                   " ",
-                  Button("Copy to Clipboard", cls='copy-to-clipboard-button', onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{uri('new-feedback-form', process_id=req.token)}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
+                  Button("Copy to Clipboard", cls='copy-to-clipboard-button', onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
                   " ",
                   Div(
                     (P(f"Email sent on {req['email_sent']}") 
