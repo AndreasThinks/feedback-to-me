@@ -499,6 +499,10 @@ def get_new_feedback():
               ) for q in FEEDBACK_QUALITIES],
            cls="qualities-checkboxes")
         ),
+        Div(
+            H3("Other Qualities (comma separated)"),
+            Input(name="custom_qualities", type="text", placeholder="Enter custom qualities separated by commas")
+        ),
         Button("Begin collecting feedback", type="submit", cls="primary")
         , action="/create-new-feedback-process", method="post"
     )
@@ -535,6 +539,10 @@ def create_new_feedback_process(process_title : str, peers_emails: str, supervis
     user.credits -= total_requests
     users.update(user)
     selected_qualities = [q for q in FEEDBACK_QUALITIES if data.get(f"quality_{q}")]
+    custom_qualities = data.get("custom_qualities", "")
+    if custom_qualities:
+        custom_list = [s.strip() for s in custom_qualities.split(",") if s.strip()]
+        selected_qualities.extend(custom_list)
     process_data = {
         "id": secrets.token_hex(8),
         "process_title" :  process_title,
@@ -598,7 +606,7 @@ def get_report_status_page(process_id : str):
     report_in_progress_text = "Your request for feedback has been created, along with a custom questionaire for each participant. Please email them each their custom link, or click the button below for us to email them on your behalf. "
     report_awaiting_generation_text = "You've received enough feedback to generate a report! Click the button when you're ready to create your report summary. "
     report_completed_text = "Your feedback process is complete, and your final report has been generated. "
-
+    
     if process.feedback_report:
         opening_text = report_completed_text
     elif can_generate_report:
@@ -614,7 +622,7 @@ def get_report_status_page(process_id : str):
             missing_parts.append(f"{needed_supervisors} supervisor(s)")
         if needed_reports > 0:
             missing_parts.append(f"{needed_reports} report(s)")
-        missing_text = "Missing: " + ", ".join(missing_parts) if missing_parts else ""
+        missing_text = "Additional responses required before report is available: " + ", ".join(missing_parts) if missing_parts else ""
         opening_text = report_in_progress_text + " " + missing_text
 
     try:
@@ -817,6 +825,15 @@ def get_feedback_form(process_id: str):
 
     onward_request_id = process_id
     
+    qualities = feedback_process_tb[original_process_id].qualities
+    if not isinstance(qualities, list):
+        try:
+            import ast
+            qualities = ast.literal_eval(qualities)
+            if not isinstance(qualities, list):
+                qualities = [q.strip() for q in str(qualities).split(",") if q.strip()]
+        except Exception:
+            qualities = [q.strip() for q in qualities.split(",") if q.strip()]
     form = Form(checkbox_text,
             *[(
                    Label(q, cls="range-label"), 
@@ -824,7 +841,7 @@ def get_feedback_form(process_id: str):
                        Input(type="range", min=1, max=8, value=4, id=f"rating_{q.lower()}"),
                        cls="range-wrapper"
                    )
-              ) for q in FEEDBACK_QUALITIES],
+              ) for q in qualities],
               textbox_text,
             Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True),
         Button("Submit Feedback", type="submit"),
