@@ -644,29 +644,26 @@ def get_report_status_page(process_id : str):
     requests_section = Article(
         *requests_list
     )
-    
-    action_section = Div()
-    if can_generate_report:
-        action_section = Div(
-            Button(
-                "Generate Feedback Report",
-                hx_post=f"/feedback-process/{process_id}/generate_completed_feedback_report",
-                hx_target="#report-section"
-            )
-        )
-    
+
     report_section = Div(id="report-section")
-    if process.feedback_report:
-        report_section = Article(
+
+    if can_generate_report:
+        if  process.feedback_report:
+            report_section = Article(
             H3("Feedback Report"),
             Div(process.feedback_report, cls="marked"),
-            id="report-section"
-        )
+            id="report-section")
+        else:
+            report_section = Div(Button(
+                "Generate Feedback Report",
+                hx_post=f"/feedback-process/{process_id}/generate_completed_feedback_report",
+                hx_target="#report-section"),
+                id="report-section")
+
 
     process_page_content = generate_themed_page(page_body=Container(
             status_section,
-            requests_section,
-            action_section,
+            requests_section,   
             report_section
         ), page_title="Feedback Process {process_id}")
     

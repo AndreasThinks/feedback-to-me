@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from fastcore.basics import patch
 
 
-
 # -------------------------
 # Database and Schema Setup
 # -------------------------
