@@ -672,13 +672,12 @@ def get_report_status_page(process_id : str):
 
     report_section = Div(id="report-section")
 
-    if can_generate_report:
-        if  process.feedback_report:
-            report_section = Article(
-            H3("Feedback Report"),
-            Div(process.feedback_report, cls="marked"),
-            id="report-section")
-        else:
+    if  process.feedback_report:
+        report_section = Article(
+        H3("Feedback Report"),
+        Div(process.feedback_report, cls="marked"),
+        id="report-section")
+    elif can_generate_report:
             report_section = Div(
                 Button(
                     "Generate Feedback Report",
