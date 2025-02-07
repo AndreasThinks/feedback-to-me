@@ -461,8 +461,20 @@ def get(req):
 # -----------------------
 @app.get("/start-new-feedback-process")
 def get_new_feedback():
+    if MIN_REPORTS == 0:
+        respondents_div = Div(
+            P(f"You'll need at least {MIN_PEERS} peers, {MIN_SUPERVISORS} supervisors, and {MIN_REPORTS} direct reports to generate your finalised report"),
+            cls="min-requirements"
+        )
+    else:
+        respondents_div = Div(
+            P(f"You'll need at least {MIN_PEERS} peers and {MIN_SUPERVISORS} supervisors to generate your finalised report"),
+            cls="min-requirements"
+        )
+    
     form = Form(
         Input(name='process_title', type='text', placeholder="Provide a short title for this process"),
+        respondents_div,
         Div(
             P("Enter emails (one per line) for each category:")
         ),
@@ -490,7 +502,7 @@ def get_new_feedback():
         Button("Begin collecting feedback", type="submit", cls="primary")
         , action="/create-new-feedback-process", method="post"
     )
-
+    
     return Titled("Start new feedback process", form)
 
 @app.post("/create-new-feedback-process")
@@ -588,11 +600,22 @@ def get_report_status_page(process_id : str):
     report_completed_text = "Your feedback process is complete, and your final report has been generated. "
 
     if process.feedback_report:
-        opening_text =  report_completed_text
+        opening_text = report_completed_text
     elif can_generate_report:
-        opening_text =  report_awaiting_generation_text
+        opening_text = report_awaiting_generation_text
     else:
-        opening_text = report_in_progress_text
+        needed_peers = max(process.min_required_peers - submission_counts["peer"], 0)
+        needed_supervisors = max(process.min_required_supervisors - submission_counts["supervisor"], 0)
+        needed_reports = max(process.min_required_reports - submission_counts["report"], 0)
+        missing_parts = []
+        if needed_peers > 0:
+            missing_parts.append(f"{needed_peers} peer(s)")
+        if needed_supervisors > 0:
+            missing_parts.append(f"{needed_supervisors} supervisor(s)")
+        if needed_reports > 0:
+            missing_parts.append(f"{needed_reports} report(s)")
+        missing_text = "Missing: " + ", ".join(missing_parts) if missing_parts else ""
+        opening_text = report_in_progress_text + " " + missing_text
 
     try:
         created_at_dt = datetime.fromisoformat(process.created_at)  # If stored in ISO format (e.g., "2025-02-07T14:30:00")
