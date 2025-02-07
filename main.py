@@ -203,6 +203,12 @@ def get():
 def get():
     return generate_themed_page(privacy_policy_page)
 
+@app.get("/get-started")
+def get(sess):
+    if "auth" in sess:
+        return Redirect("/dashboard")
+    return generate_themed_page(login_or_register_page)
+
 # -----------------------
 # User Registration and Login Pages
 # -----------------------

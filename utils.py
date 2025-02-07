@@ -26,6 +26,7 @@ def auth_before(req, sess):
 
 beforeware = Beforeware(auth_before, skip=[r'/',
                                            r'/login',
+                                        r'/get-started',
                                            r'/about',
                                            r'/faq',
                                            r'/login-or-register',

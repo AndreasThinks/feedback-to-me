@@ -39,20 +39,21 @@ def dashboard_page(user):
     )
 
 introductory_paragraph = """
-Feedback is a gift - that's why firms will spend fortunes hiring consultancies to run 360 feedback processes. But those processes are lengthy, costly, and hard to manage. 
+Feedback is a gift - that's why firms will spend fortunes hiring consultancies to run 360 feedback processes. But those processes are lengthy, costly, and hard to manage.
 
-Feedback to Me streamlines the entire 360 feedback process. Just enter the emails of a few people you work with, and we'll do the rest: we'll give each a custom survey, and once they've completed it, use AI to generate a totally anonymouse report.
+Feedback to Me streamlines the entire 360 feedback process. Just enter the emails of a few people you work with, and we'll do the rest: we'll give each a custom survey, and once they've completed it, use AI to generate a totally anonymous report.
 
-At every step, your data is secure, and teh process totally anonymous.
+At every step, your data is secure, and the process totally anonymous.
 
-Feedback to Me is currently in alpha testing - we'd recommend not using it with sensitive data. 
+Feedback to Me is currently in alpha testing - we'd recommend not using it with sensitive data.
 """
 
 landing_page = Container(
     Div(
          H2("Welcome to Feedback to Me"),
          P("360 feedback, made simpe and powered by AI"),
-         Button("Get Started", href="/login-or-register", cls="btn-primary", hx_get="/login-or-register", hx_target="#main-content", hx_swap="innerHTML"),
+         A(Button("Get Started", href="/get-started", cls="btn-primary"), href='/get-started')
+         ,
          P("Join now and create your first report for free!"),
          Div(introductory_paragraph, cls='Marked'),
          cls="landing-page"
@@ -65,7 +66,7 @@ navigation_bar_logged_out = Nav(
     Ul(
         Li(AX("About", href="/about")),
         Li(AX("FAQ", href="/faq")),
-        Li(AX("Get Started", hx_get="/login-or-register", hx_target="#main-content", hx_swap="outerHTML"))
+        Li(AX("Get Started", href='/get-started'))
     ),
     cls='navbar'
 )
@@ -98,8 +99,7 @@ privacy_policy_page = Container(
 )
 
 login_or_register_page = Container(
-    H2("Welcome to Feedback2Me"),
-    P("Create an account or login to start collecting feedback."),
+    P("Create an account or login to start collecting feedback.", id='login-intro-text', cls='login-intro-text'),
     Div(
         Button("Login", hx_get="/login-form", hx_target="#login-register-buttons"),
         Button("Register", hx_get="/register", hx_target="#login-register-buttons"),
@@ -112,11 +112,11 @@ login_form = Form(
             Input(name="email", type="email", placeholder="Email", required=True),
             Input(name="pwd", type="password", placeholder="Password", required=True),
         Button("Login", type="submit", cls="primary"),
-        hx_post="/login", hx_target="#login-form", hx_swap="beforebegin", id='login-form'
+        hx_post="/login", hx_target="#login-intro-text", id='login-form'
     )
 
-error_message = Container(
-    I("We couldn't log you in.")
+error_message = Div(
+    I("We couldn't log you in... Are your details are correct?"), cls='login-error-message'
 )
 
 register_form = Form(

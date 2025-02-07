@@ -1,6 +1,5 @@
 /* Basic styling for forms and containers */
 .registration-form {
-  background: #f3f3f3;
   padding: 1.5rem;
   border-radius: 8px;
   margin: 1rem 0;
@@ -239,3 +238,15 @@
 .hidden {
   display: none !important;
 }
+
+.login-intro-text {
+  display: flex; 
+  justify-content: center
+}
+
+  .login-error-message {
+    display: flex; 
+    justify-content: center;
+    color: red;
+    font-size: small;
+  } 
