@@ -7,12 +7,12 @@ def dashboard_page(user):
     return Container(
         H2(f"Hello {user.first_name}, you have {user.credits} credits remaining"),
         Div(
-            H3("Active Feedback Collection"),
+            H3("Collecting responses"),
             P("No active feedback collection processes.", cls="text-muted"),
             Button("Start New Feedback Collection", hx_get="/start-new-feedback-process", hx_target="#main-content", hx_swap="innerHTML")
         ),
         Div(
-            H3("Ready for Review"),
+            H3("Report ready to generate"),
             P("No feedback ready for review.", cls="text-muted")
         ),
         Div(

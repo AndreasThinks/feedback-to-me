@@ -137,3 +137,67 @@
     font-size: 0.75em;
   }
 }
+
+.request-container {
+  display: flex;
+  flex-direction: column;
+  background-color: #1e1e2e;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 5px rgba(255, 255, 255, 0.1);
+}
+
+.request-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.request-status-email {
+  font-size: 1rem;
+  font-weight: bold;
+  color: hsl(210, 17%, 98%);
+}
+
+.request-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.75rem;
+  border-radius: 50px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.request-status-pending {
+  background-color: #f39c12;
+  color: #fff;
+}
+
+.request-status-completed {
+  background-color: #27ae60;
+  color: #fff;
+}
+
+.form-links-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.request-status-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  background-color: #007bff;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+}

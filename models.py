@@ -28,9 +28,10 @@ class User:
 users = db.create(User, pk="email")  # Use email as primary key for simpler login
 
 # FeedbackProcess table: tracks the overall feedback collection process
-@dataclass
+
 class FeedbackProcess:
     id: str
+    process_title : str
     user_id: str
     created_at: datetime
     min_required_peers: int
@@ -42,10 +43,16 @@ class FeedbackProcess:
 
 @patch
 def __ft__(self: FeedbackProcess):
-    link = AX(f"Feedback Process {self.id}", hx_get= f'/feedback-process/{self.id}', hx_target="#main-content", id=f'process-{self.id}')   
-    status_str = "Complete" if self.feedback_report else "In Progress"
-    cts = (status_str, " - ", link)
-    return Li(*cts, id=f'process-{self.id}')
+     # Convert the string datetime to a datetime object if necessary
+    try:
+        created_at_dt = datetime.fromisoformat(self.created_at)  # If stored in ISO format (e.g., "2025-02-07T14:30:00")
+    except ValueError:
+        created_at_dt = datetime.strptime(self.created_at, "%Y-%m-%d %H:%M:%S")  # Adjust format if needed
+
+    # Format the datetime object into a human-readable string
+    formatted_date = created_at_dt.strftime("%B %d, %Y %H:%M")  # Example: "February 07, 2025 14:30"
+    link = AX(f"{self.process_title} - created on {formatted_date}", href= f'/feedback-process/{self.id}', id=f'process-{self.id}')   
+    return Li(link, id=f'process-{self.id}')
 
 feedback_process_tb = db.create(FeedbackProcess, pk="id")
 

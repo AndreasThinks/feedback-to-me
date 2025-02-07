@@ -448,15 +448,15 @@ def get(req):
         P(f"You have {user.credits} credits remaining"),
         Div(Button("Start New Feedback Collection", hx_get="/start-new-feedback-process", hx_target="#main-content", hx_swap="innerHTML"), cls="collect-feedback-button"),
         Div(
-            H3("Active Feedback Collection"),
+            H3("Collecting responses"),
             *active_html or P("No active feedback collection processes.", cls="text-muted"),
         cls="report-section"),
         Div(
-            H3("Ready for Review"),
+            H3("Report ready to generate"),
             P("No feedback ready for review.", cls="text-muted"),
         cls="report-section"),
         Div(
-            H3("Completed Reports"),
+            H3("Completed reports"),
             *completed_html or P("No completed feedback reports.", cls="text-muted"),
         cls="report-section")
     )
@@ -468,8 +468,8 @@ def get(req):
 @app.get("/start-new-feedback-process")
 def get_new_feedback():
     form = Form(
+        Input(name='process_title', type='text', placeholder="Provide a short title for this process"),
         Div(
-            H2("New Feedback Process"),
             P("Enter emails (one per line) for each category:")
         ),
         Div(
@@ -497,10 +497,10 @@ def get_new_feedback():
         , action="/create-new-feedback-process", method="post"
     )
 
-    return Titled("Start New Feedback Process", form)
+    return Titled("Start new feedback process", form)
 
 @app.post("/create-new-feedback-process")
-def create_new_feedback_process(peers_emails: str, supervisors_emails: str, reports_emails: str, sess, data: dict):
+def create_new_feedback_process(process_title : str, peers_emails: str, supervisors_emails: str, reports_emails: str, sess, data: dict):
     logger.debug("create_new_feedback_process called with:")
     logger.debug(f"peers_emails: {peers_emails!r}")
     logger.debug(f"supervisors_emails: {supervisors_emails!r}")
@@ -531,6 +531,7 @@ def create_new_feedback_process(peers_emails: str, supervisors_emails: str, repo
     selected_qualities = [q for q in FEEDBACK_QUALITIES if data.get(f"quality_{q}")]
     process_data = {
         "id": secrets.token_hex(8),
+        "process_title" :  process_title,
         "user_id": user_id,
         "created_at": datetime.now(),
         "min_required_peers": MIN_PEERS,
@@ -541,6 +542,10 @@ def create_new_feedback_process(peers_emails: str, supervisors_emails: str, repo
         "feedback_report": None
     }
     fp = feedback_process_tb.insert(process_data)
+    print(fp)
+
+    generated_process_id = fp.id
+    print(generated_process_id)
     # Create feedback requests for each role.
     for email in peers:
         link = generate_magic_link(email, process_id=process_data["id"])
@@ -555,7 +560,7 @@ def create_new_feedback_process(peers_emails: str, supervisors_emails: str, repo
         link = generate_magic_link(email, process_id=process_data["id"])
         token = link.replace("new-feedback-form/token=", "")
         feedback_request_tb.update({"user_type": "report"}, token=token)
-    return RedirectResponse("/dashboard", status_code=303)
+    return RedirectResponse(f"/feedback-process/{generated_process_id}", status_code=303)
 
 # -----------------------
 # Routes: Existing Feedback Process
@@ -585,18 +590,29 @@ def get_report_status_page(process_id : str):
         submission_counts["report"] >= process.min_required_reports and
         not process.feedback_report
     )
-    
+
+    report_in_progress_text = "Your request for feedback has been created, along with a custom questionaire for each participant. Please email them each their custom link, or click the button below for us to email them on your behalf. "
+    report_awaiting_generation_text = "You've received enough feedback to generate a report! Click the button when you're ready to create your report summary. "
+    report_completed_text = "Your feedback process is complete, and your final report has been generated. "
+
+    if process.feedback_report:
+        opening_text =  report_completed_text
+    elif can_generate_report:
+        opening_text =  report_awaiting_generation_text
+    else:
+        opening_text = report_in_progress_text
+
+    try:
+        created_at_dt = datetime.fromisoformat(process.created_at)  # If stored in ISO format (e.g., "2025-02-07T14:30:00")
+    except ValueError:
+        created_at_dt = datetime.strptime(process.created_at, "%Y-%m-%d %H:%M:%S")  # Adjust format if needed
+
+    formatted_date = created_at_dt.strftime("%B %d, %Y %H:%M")
+
     status_section = Article(
-        H2("Feedback Process Status"),
-        P(f"Process ID: {process.id}"),
-        P(f"Created: {process.created_at}"),
-        P(f"Status: {'Complete' if process.feedback_report else 'In Progress'}"),
-        Div(
-            H3("Progress"),
-            P(f"Peers: {submission_counts['peer']}/{process.min_required_peers}"),
-            P(f"Supervisors: {submission_counts['supervisor']}/{process.min_required_supervisors}"),
-            P(f"Reports: {submission_counts['report']}/{process.min_required_reports}")
-        )
+        H3(f"{process.process_title} {' (Complete)' if process.feedback_report else ' (In Progress)'}"),
+        P(f"Created: {formatted_date}"),
+        Div(opening_text, cls='marked'),
     )
     
     requests_list = []
@@ -604,31 +620,30 @@ def get_report_status_page(process_id : str):
         submission = req.completed_at
         requests_list.append(
             Article(
-                H4(f"{req.user_type} Feedback Request"),
-                P(f"Email: {req.email}"),
-                P(f"Status: {'Submitted' if submission else 'Pending'}"),
-                P("Magic Link: ",
-                  A("Click to open feedback form", link=uri("new-feedback-form", process_id=req.token)),
-                  " ",
-                  Button("Copy to Clipboard", cls="copy-to-clipboard-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
+                Div(
+                Strong(f"{req.email}", cls='request-status-email'),
+                Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
+                cls="request-status-header"),
+                Div(
+                P(
+                  Button("Copy link to clipboard", cls="request-status-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
                   " ",
                   Div(
                     (P(f"Email sent on {req.email_sent}") 
                       if req.email_sent
-                      else Button("Send Email", 
+                      else Button("Send email", 
                           hx_post=f"/feedback-process/{process_id}/send_email?token={req.token}", 
                           hx_target=f"#email-status-{req.token}", 
-                          hx_swap="outerHTML")
+                          hx_swap="outerHTML",  cls="request-status-button")
                     ),
-                    id=f"email-status-{req.token}"
-                  )
-                ),
+                    id=f"email-status-{req.token}", 
+                  ), 
+                ),cls="form-links-row", hidden=True if submission else False),
                 cls=f"request-{req.user_type}"
             )
         )
     
     requests_section = Article(
-        H3("Feedback Requests"),
         *requests_list
     )
     
@@ -649,16 +664,15 @@ def get_report_status_page(process_id : str):
             Div(process.feedback_report, cls="marked"),
             id="report-section"
         )
-    
-    return Titled(
-        f"Feedback Process {process_id}",
-        Container(
+
+    process_page_content = generate_themed_page(page_body=Container(
             status_section,
             requests_section,
             action_section,
             report_section
-        )
-    )
+        ), page_title="Feedback Process {process_id}")
+    
+    return process_page_content
 
 def create_feedback_report_input(process_id):
     process = feedback_process_tb[process_id]
