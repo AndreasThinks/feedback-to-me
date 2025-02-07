@@ -21,7 +21,7 @@ from pages import error_message, login_or_register_page, register_form, login_fo
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
-from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS
+from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS, BASE_URL
 from utils import beforeware
 
 import requests
@@ -446,19 +446,19 @@ def get(req):
         H2(f"Hi {user.first_name}!"),
         P("Welcome to your dashboard. Here you can manage your feedback collection processes."),
         P(f"You have {user.credits} credits remaining"),
+        Div(Button("Start New Feedback Collection", hx_get="/start-new-feedback-process", hx_target="#main-content", hx_swap="innerHTML"), cls="collect-feedback-button"),
         Div(
             H3("Active Feedback Collection"),
             *active_html or P("No active feedback collection processes.", cls="text-muted"),
-            Button("Start New Feedback Collection", hx_get="/start-new-feedback-process", hx_target="#main-content", hx_swap="innerHTML")
-        ),
+        cls="report-section"),
         Div(
             H3("Ready for Review"),
-            P("No feedback ready for review.", cls="text-muted")
-        ),
+            P("No feedback ready for review.", cls="text-muted"),
+        cls="report-section"),
         Div(
             H3("Completed Reports"),
-            *completed_html or P("No completed feedback reports.", cls="text-muted")
-        )
+            *completed_html or P("No completed feedback reports.", cls="text-muted"),
+        cls="report-section")
     )
     return generate_themed_page(dashboard_page_active, auth=auth, page_title="Your Dashboard")
 
@@ -486,10 +486,12 @@ def get_new_feedback():
         ),
         Div(
             H3("Select Qualities to be Graded On"),
+            Div(
             *[Div(
                 Input(name=f"quality_{q}", type="checkbox", value=q),
                 Label(q)
-              ) for q in FEEDBACK_QUALITIES]
+              ) for q in FEEDBACK_QUALITIES],
+           cls="qualities-checkboxes")
         ),
         Button("Begin collecting feedback", type="submit", cls="primary")
         , action="/create-new-feedback-process", method="post"
@@ -765,27 +767,42 @@ def get_feedback_form(process_id: str):
     requestor_id = feedback_process_tb[original_process_id].user_id
     requestor_name = users("id=?", (requestor_id,))[0].first_name
 
-    introduction_text = P(f"{requestor_name} has asked for your feedback")
+    # make sure the first letter of the requestor's name is capitalized
+    requestor_name = requestor_name[0].upper() + requestor_name[1:]
+
+    introduction_text = Div(f"""{requestor_name} is completing a 360 feedback process through [Feedback to Me](https://feedback-to.me), and would like your help! """,
+    cls='marked')
+
+    process_explanation = Div(f"""Once you submit your feedback, we'll anonymise it, and compile it into a report for {requestor_name}. You can learn more about Feedback to Me, and how we handle your data and generate feedback [on our website.]({BASE_URL})""",
+    cls='marked')
+
+    checkbox_text = Div(f"Please rate {requestor_name} on the following qualities:", cls='marked')   
+
+    textbox_text = Div(f"Please write any additional feedback you have for {requestor_name}. Don't worry, we'll make sure it's all anonymous!", cls='marked')
 
     onward_request_id = process_id
     
-    form = Form(
-            *[Group(
-                   Label(q), 
+    form = Form(checkbox_text,
+            *[(
+                   Label(q, cls="range-label"), 
                    Div(
                        Input(type="range", min=1, max=8, value=4, id=f"rating_{q.lower()}"),
                        cls="range-wrapper"
                    )
               ) for q in FEEDBACK_QUALITIES],
+              textbox_text,
             Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True),
         Button("Submit Feedback", type="submit"),
         hx_post=f"/new-feedback-form/{onward_request_id}/submit", hx_target="body", hx_swap="outerHTML"
     )
-    return Titled("Submit Feedback", introduction_text, form)
+    return Titled("Submit Feedback", introduction_text, process_explanation, form,footer_bar)
 
 @app.get("/feedback-submitted")
 def get_feedback_submitted():
-    return Titled("Feedback Submitted", P("Thank you for your feedback! It has been submitted successfully."))
+    thank_you_text = Div("Thank you for your feedback! It has been submitted successfully.", cls='marked')
+    learn_more_text = Div(f"If you'd like to generate your own free feedback report, check out [Feedback to Me!](https://feedback-to.me)", cls='marked')
+    return Titled("Feedback Submitted", thank_you_text, learn_more_text,footer_bar)
+    
 
 @app.post("/new-feedback-form/{request_token}/submit")
 def submit_feedback_form(request_token: str, feedback_text: str, data : dict):

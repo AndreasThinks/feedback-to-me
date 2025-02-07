@@ -1,6 +1,7 @@
 # we use this page for our templates and skins
 
 from fasthtml.common import *
+from config import BASE_URL
 
 def dashboard_page(user):
     return Container(
@@ -60,7 +61,7 @@ def navigation_bar_logged_in(user):
         cls='navbar'
     )
 
-footer_bar = Footer(P("© 2025 Feedback to Me"), cls='footer')
+footer_bar = Footer(A("© 2025 Feedback to Me"), href=BASE_URL, cls='footer')
 
 about_page = Container(
     H2("About the Feedback App"),

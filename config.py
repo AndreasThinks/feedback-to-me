@@ -20,3 +20,5 @@ COST_PER_CREDIT_USD = int(os.getenv("COST_PER_CREDIT_USD", "3"))
 MAGIC_LINK_EXPIRY_DAYS = int(os.getenv("MAGIC_LINK_EXPIRY_DAYS", "30"))
 # Number of reports (people who report) defaults to 0
 FEEDBACK_QUALITIES = os.getenv("FEEDBACK_QUALITIES", "Communication,Leadership,Technical Skills,Teamwork,Problem Solving").split(",")
+
+BASE_URL =  os.getenv("BASE_URL", "feedback-to.me")

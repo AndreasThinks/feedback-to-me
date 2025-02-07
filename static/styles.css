@@ -1,4 +1,4 @@
-e/* Basic styling for forms and containers */
+/* Basic styling for forms and containers */
 .registration-form {
   background: #f3f3f3;
   padding: 1.5rem;
@@ -81,47 +81,59 @@ e/* Basic styling for forms and containers */
    font-size: x-small;
 }
 
-/* Fix for feedback form: Force feedback range inputs to stack vertically and take full width */
-input[type="range"] {
-    display: block !important;
-    width: 100%;
-    margin: 0.5rem 0;
-    clear: both;
+.report-section {
+  padding: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin: 1rem 0;
 }
 
-/* Make the feedback text area larger and more prominent */
-#feedback_text {
-    height: 400px;
-    width: 100%;
-    margin-top: 1rem;
-    margin-bottom: 2rem;
+.qualities-checkboxes {
+   margin: 1rem 0;
 }
 
-/* Ensure that in forms (like the feedback form) all grouped elements stack vertically */
-form > div {
-    display: flex;
-    flex-direction: column !important;
-}
-
-/* Ensure that elements within .Group are stacked vertically and take full width */
-.Group {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.Group > * {
-    width: 100%;
-}
-
-/* Styling for slider range wrapper with number labels */
 .range-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  position: relative;
+  margin-bottom: 2rem;
+  display: block;
 }
 
-.range-wrapper span {
-    font-weight: bold;
-    margin: 0 0.5rem;
+.range-wrapper input[type="range"] {
+  width: 100%;
+}
+
+/* Add "Poor" and "Excellent" labels above each range */
+.range-wrapper {
+  position: relative;
+  margin-bottom: 2rem;
+  display: block;
+  padding-top: 1.5em;
+}
+
+.range-wrapper::before {
+  content: "Poor";
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 0.9em;
+  color: #444;
+}
+
+.range-wrapper::after {
+  content: "Excellent";
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 0.9em;
+  color: #444;
+}
+
+@media (max-width: 600px) {
+  .range-wrapper {
+    padding-top: 1.2em;
+  }
+  .range-wrapper::before,
+  .range-wrapper::after {
+    font-size: 0.75em;
+  }
 }
