@@ -542,10 +542,8 @@ def create_new_feedback_process(process_title : str, peers_emails: str, supervis
         "feedback_report": None
     }
     fp = feedback_process_tb.insert(process_data)
-    print(fp)
 
     generated_process_id = fp.id
-    print(generated_process_id)
     # Create feedback requests for each role.
     for email in peers:
         link = generate_magic_link(email, process_id=process_data["id"])
@@ -775,6 +773,9 @@ def create_feeback_report(process_id : str):
 # -------------------------------
 @app.get("/new-feedback-form/{process_id}", name="new-feedback-form")
 def get_feedback_form(process_id: str):
+
+    if process_id.startswith('process_id='):
+        process_id = process_id.replace('process_id=','')
 
     original_process_id = feedback_request_tb[process_id].process_id
 
