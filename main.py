@@ -380,8 +380,8 @@ def create_checkout_session(req, sess, credits: int):
     # Calculate total amount in cents
     amount = credits * COST_PER_CREDIT_USD * 100
     # Build success and cancel URLs using uri helper
-    success_url = uri("payment-success") + "?session_id={CHECKOUT_SESSION_ID}"
-    cancel_url = uri("payment-cancel")
+    success_url = generate_external_link(uri("payment-success") + "?session_id={CHECKOUT_SESSION_ID}")
+    cancel_url = generate_external_link(uri("payment-cancel"))
     checkout_session = stripe.checkout.Session.create(
          payment_method_types=["card"],
          line_items=[{
