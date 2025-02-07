@@ -80,3 +80,48 @@ e/* Basic styling for forms and containers */
    justify-content: center;
    font-size: x-small;
 }
+
+/* Fix for feedback form: Force feedback range inputs to stack vertically and take full width */
+input[type="range"] {
+    display: block !important;
+    width: 100%;
+    margin: 0.5rem 0;
+    clear: both;
+}
+
+/* Make the feedback text area larger and more prominent */
+#feedback_text {
+    height: 400px;
+    width: 100%;
+    margin-top: 1rem;
+    margin-bottom: 2rem;
+}
+
+/* Ensure that in forms (like the feedback form) all grouped elements stack vertically */
+form > div {
+    display: flex;
+    flex-direction: column !important;
+}
+
+/* Ensure that elements within .Group are stacked vertically and take full width */
+.Group {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.Group > * {
+    width: 100%;
+}
+
+/* Styling for slider range wrapper with number labels */
+.range-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.range-wrapper span {
+    font-weight: bold;
+    margin: 0 0.5rem;
+}

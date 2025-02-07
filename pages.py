@@ -76,10 +76,12 @@ login_or_register_page = Container(
     H2("Welcome to Feedback2Me"),
     P("Create an account or login to start collecting feedback."),
     Div(
-    Button("Login", hx_get="/login-form", hx_target="#login-register-buttons"),
-    Button("Register", hx_get="/register", hx_target="#login-register-buttons"),
-    id="login-register-buttons"
-))
+        Button("Login", hx_get="/login-form", hx_target="#login-register-buttons"),
+        Button("Register", hx_get="/register", hx_target="#login-register-buttons"),
+        id="login-register-buttons",
+        style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"
+    )
+)
 
 login_form = Form(
             Input(name="email", type="email", placeholder="Email", required=True),
@@ -93,13 +95,13 @@ error_message = Container(
 )
 
 register_form = Form(
-            Input(name="first_name", type="text", placeholder="First Name", required=True),
-            Input(name="email", type="email", placeholder="Email", required=True),
-            Input(name="pwd", type="password", placeholder="Password", required=True),
-            Input(name="pwd_confirm", type="password", placeholder="Confirm Password", required=True),
-            Input(name="role", type="text", placeholder="Role (e.g. Software Engineer)", required=False),
-            Input(name="company", type="text", placeholder="Company", required=False),
-            Input(name="team", type="text", placeholder="Team", required=False),
+            Div(Input(name="first_name", type="text", placeholder="First Name *", required=True)),
+            Div(Input(name="email", type="email", placeholder="Email *", required=True)),
+            Div(Input(name="pwd", type="password", placeholder="Password *", required=True)),
+            Div(Input(name="pwd_confirm", type="password", placeholder="Confirm Password *", required=True)),
+            Div(Input(name="role", type="text", placeholder="Role (Optional, e.g. Software Engineer)", required=False)),
+            Div(Input(name="company", type="text", placeholder="Company (Optional)", required=False)),
+            Div(Input(name="team", type="text", placeholder="Team (Optional)", required=False)),
         Button("Register", type="submit", cls="secondary"),
         action="/register-new-user", method="post",
         cls="registration-form")

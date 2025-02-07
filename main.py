@@ -497,7 +497,6 @@ def get_new_feedback():
 
     return Titled("Start New Feedback Process", form)
 
-
 @app.post("/create-new-feedback-process")
 def create_new_feedback_process(peers_emails: str, supervisors_emails: str, reports_emails: str, sess, data: dict):
     logger.debug("create_new_feedback_process called with:")
@@ -609,7 +608,7 @@ def get_report_status_page(process_id : str):
                 P("Magic Link: ",
                   A("Click to open feedback form", link=uri("new-feedback-form", process_id=req.token)),
                   " ",
-                  Button("Copy to Clipboard", cls='copy-to-clipboard-button', onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
+                  Button("Copy to Clipboard", cls="copy-to-clipboard-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
                   " ",
                   Div(
                     (P(f"Email sent on {req.email_sent}") 
@@ -771,11 +770,14 @@ def get_feedback_form(process_id: str):
     onward_request_id = process_id
     
     form = Form(
-        Group(
-            *[Group(Label(q), Input(type="range", min=1, max=8, value=4, id=f"rating_{q.lower()}"))
-              for q in FEEDBACK_QUALITIES],
-            Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True)
-        ),
+            *[Group(
+                   Label(q), 
+                   Div(
+                       Input(type="range", min=1, max=8, value=4, id=f"rating_{q.lower()}"),
+                       cls="range-wrapper"
+                   )
+              ) for q in FEEDBACK_QUALITIES],
+            Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True),
         Button("Submit Feedback", type="submit"),
         hx_post=f"/new-feedback-form/{onward_request_id}/submit", hx_target="body", hx_swap="outerHTML"
     )
@@ -790,9 +792,7 @@ def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
     print(data)
     try:
         feedback_request = feedback_request_tb[request_token]
-
         print('found feedback request')
-        
         ratings = {}
         for quality in FEEDBACK_QUALITIES:
             rating_key = f"rating_{quality.lower()}"
@@ -802,7 +802,6 @@ def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid rating value for {quality}: {data[rating_key]}")
                     continue
-        
         submission_data = {
             "id": secrets.token_hex(8),
             "request_id": feedback_request.process_id,
@@ -812,7 +811,6 @@ def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
             "created_at": datetime.now()
         }
         submission = feedback_submission_tb.insert(submission_data)
-        
         feedback_themes = convert_feedback_text_to_themes(feedback_text)
         if feedback_themes:
             for sentiment in ["positive", "negative", "neutral"]:
@@ -826,17 +824,13 @@ def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
                             "created_at": datetime.now()
                         }
                         feedback_themes_tb.insert(theme_data)
-        
         process = feedback_process_tb[feedback_request.process_id]
         feedback_process_tb.update(
             {"feedback_count": process.feedback_count + 1},
             feedback_request.process_id
         )
-
         feedback_request_tb.update(feedback_request, completed_at=datetime.now(), token=request_token)
-
         return RedirectResponse("/feedback-submitted", status_code=303)
-        
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         return "Error submitting feedback. Please try again.", 500
