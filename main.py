@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login, confirm_tokens_tb
-from pages import error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
+from pages import generate_themed_page, faq_page, error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
@@ -44,22 +44,6 @@ app, rt = fast_app(
 # --------------------
 # Helper Functions
 # --------------------
-
-def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
-    """Generate a themed page with appropriate navigation bar based on auth status"""
-    nav_bar = navigation_bar_logged_out
-    if auth:
-        user = users("id=?", (auth,))[0]
-        nav_bar = navigation_bar_logged_in(user)
-    else:
-        nav_bar = navigation_bar_logged_out
-    return (Title(page_title),
-    Favicon('static/favicon.ico', dark_icon='static/favicon.ico'),
-    Container(
-        nav_bar,
-        Div(page_body, id="main-content"),
-        footer_bar
-    ))
 
 def generate_external_link(url):
     """Find the base domain env var, if it exists, and return the link with the base domain as as a string"""
@@ -210,6 +194,10 @@ def get():
 @app.get("/about")
 def get():
     return generate_themed_page(about_page)
+
+@app.get("/faq")
+def get():
+    return faq_page()
 
 @app.get("/privacy-policy")
 def get():

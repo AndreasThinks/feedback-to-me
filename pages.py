@@ -2,6 +2,23 @@
 
 from fasthtml.common import *
 from config import BASE_URL
+from models import users
+
+def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
+    """Generate a themed page with appropriate navigation bar based on auth status"""
+    nav_bar = navigation_bar_logged_out
+    if auth:
+        user = users("id=?", (auth,))[0]
+        nav_bar = navigation_bar_logged_in(user)
+    else:
+        nav_bar = navigation_bar_logged_out
+    return (Title(page_title),
+    Favicon('static/favicon.ico', dark_icon='static/favicon.ico'),
+    Container(
+        nav_bar,
+        Div(page_body, id="main-content"),
+        footer_bar
+    ))
 
 def dashboard_page(user):
     return Container(
@@ -21,18 +38,23 @@ def dashboard_page(user):
         )
     )
 
+introductory_paragraph = """
+Feedback is a gift - that's why firms will spend fortunes hiring consultancies to run 360 feedback processes. But those processes are lengthy, costly, and hard to manage. 
+
+Feedback to Me streamlines the entire 360 feedback process. Just enter the emails of a few people you work with, and we'll do the rest: we'll give each a custom survey, and once they've completed it, use AI to generate a totally anonymouse report.
+
+At every step, your data is secure, and teh process totally anonymous.
+
+Feedback to Me is currently in alpha testing - we'd recommend not using it with sensitive data. 
+"""
+
 landing_page = Container(
     Div(
-         H2("Welcome to Feedback to Me!"),
-         P("Discover a revolutionary way to collect and analyze feedback from your team."),
-         Ul(
-              Li("Easy Account Setup & Secure Login"),
-              Li("Launch Dynamic Feedback Campaigns with a Click"),
-              Li("Real-Time Submissions & Comprehensive Insights"),
-              Li("Empower Your Team with Actionable Analytics")
-         ),
+         H2("Welcome to Feedback to Me"),
+         P("360 feedback, made simpe and powered by AI"),
          Button("Get Started", href="/login-or-register", cls="btn-primary", hx_get="/login-or-register", hx_target="#main-content", hx_swap="innerHTML"),
-         P("Join now and transform the way you gather feedback!"),
+         P("Join now and create your first report for free!"),
+         Div(introductory_paragraph, cls='Marked'),
          cls="landing-page"
     )
 )
@@ -42,6 +64,7 @@ navigation_bar_logged_out = Nav(
         Li(Strong(A("Feedback to Me", href="/")))),
     Ul(
         Li(AX("About", href="/about")),
+        Li(AX("FAQ", href="/faq")),
         Li(AX("Get Started", hx_get="/login-or-register", hx_target="#main-content", hx_swap="outerHTML"))
     ),
     cls='navbar'
@@ -54,6 +77,7 @@ def navigation_bar_logged_in(user):
         Ul(
             Li(A("Dashboard", href="/dashboard")),
             Li(A("About", href="/about")),
+            Li(AX("FAQ", href="/faq")),
             Li(Span(f"Credits: {user.credits}")),
             Li(A("Buy Credits", href="/buy-credits")),
             Li(A("Logout", href="/logout"))
@@ -106,3 +130,67 @@ register_form = Form(
         Button("Register", type="submit", cls="secondary"),
         action="/register-new-user", method="post",
         cls="registration-form")
+
+def faq_page():
+    """Generate the FAQ page with collapsible sections about Feedback to Me."""
+    faq_items = [
+        {
+            "question": "What is Feedback to Me?",
+            "answer": "Feedback to Me is a platform that streamlines 360 feedback processes using AI and custom surveys to generate comprehensive reports."
+        },
+        {
+            "question": "How do I start a feedback process?",
+            "answer": "Simply sign up, enter the emails of your peers, supervisors, and reportees, and our system will take care of sending surveys and compiling the feedback."
+        },
+        {
+            "question": "How is my feedback anonymised?",
+            "answer": "All feedback is collected anonymously. Individual responses are processed without revealing the identity of those who provided the feedback."
+        },
+        {
+            "question": "Who can view my feedback?",
+            "answer": "Only you and designated administrators can view your full feedback report once the process is complete."
+        },
+        {
+            "question": "What happens to my feedback data?",
+            "answer": "Your feedback data is securely stored and used solely to generate meaningful, actionable feedback reports. We do not share your data with third parties."
+        },
+        {
+            "question": "How does the report generation work?",
+            "answer": "We use advanced AI models to analyze the collected feedback and generate a detailed report that highlights strengths and areas for improvement."
+        },
+        {
+            "question": "Is my data secure?",
+            "answer": "Yes, we employ industry-standard security practices, including encryption, to ensure that your data remains safe and confidential."
+        },
+        {
+            "question": "Can I update or change my feedback?",
+            "answer": "Once feedback is submitted, it is used to generate a report. For any modifications, please contact our support team."
+        },
+        {
+            "question": "What if I experience technical issues?",
+            "answer": "Our support team is available to assist you. Please reach out through our contact page if you encounter any problems."
+        },
+        {
+            "question": "Are there any costs associated?",
+            "answer": "During our alpha testing phase, the service is free. Future pricing details will be available on our pricing page."
+        }
+    ]
+    faq_content = Div(
+        *[
+            Div(
+                Div(
+                    H2(item["question"]),
+                    cls="faq-question",
+                    onclick="this.nextElementSibling.style.display = (this.nextElementSibling.style.display === 'none' ? 'block' : 'none');"
+                ),
+                Div(
+                    item["answer"],
+                    cls="faq-answer",
+                    style="display:none;"
+                )
+            )
+            for item in faq_items
+        ],
+        cls="faq-container"
+    )
+    return generate_themed_page(faq_content, page_title="FAQ")
