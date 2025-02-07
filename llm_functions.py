@@ -19,6 +19,31 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 # Configure logger for debugging
 from utils import logger
 
+
+def clean_markdown(text: str) -> str:
+    """
+    Cleans markdown text from LLM output by removing unnecessary code block markers.
+    
+    Args:
+        text (str): The input text that may contain markdown with or without code block markers
+        
+    Returns:
+        str: Clean markdown text with any surrounding code block markers removed
+    """
+    # Strip whitespace first
+    text = text.strip()
+    
+    # Check if text starts with ```markdown and ends with ```
+    if text.startswith('```markdown') and text.endswith('```'):
+        # Remove the opening ```markdown and closing ```
+        text = text[len('```markdown'):].rstrip('`').strip()
+    # Check if text just starts and ends with ``` (language not specified)
+    elif text.startswith('```') and text.endswith('```'):
+        # Remove the opening and closing ```
+        text = text[3:].rstrip('`').strip()
+        
+    return text
+
 # Define a Pydantic model for structured output
 class ThemesResponse(BaseModel):
     positive: List[str]
@@ -157,12 +182,12 @@ You should return the markdown directly, with no additional formatting needed. J
         response = llm.invoke(messages)
         logger.debug("Received response from LLM for feedback report generation.")
         logger.debug("Feedback report generated successfully.")
-        return response.content
+        markdown_output = clean_markdown(response.content)
+        return  markdown_output
         
     except Exception as e:
         logger.error(f"Error generating feedback report: {str(e)}")
         return "Error: Unable to generate feedback report. Please try again later."
-
 if __name__ == "__main__":
     logger.debug("Executing example usage from llm_functions main block.")
     # Example usage for generating a complete feedback report
