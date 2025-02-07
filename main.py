@@ -654,11 +654,17 @@ def get_report_status_page(process_id : str):
             Div(process.feedback_report, cls="marked"),
             id="report-section")
         else:
-            report_section = Div(Button(
-                "Generate Feedback Report",
-                hx_post=f"/feedback-process/{process_id}/generate_completed_feedback_report",
-                hx_target="#report-section"),
-                id="report-section")
+            report_section = Div(
+                Button(
+                    "Generate Feedback Report",
+                    hx_post=f"/feedback-process/{process_id}/generate_completed_feedback_report",
+                    hx_target="#report-section",
+                    hx_swap="outerHTML",
+                    hx_indicator="#loading-indicator"
+                ),
+                id="report-section"
+            ),
+            Div("Generating your report...", id="loading-indicator", aria_busy="true", style="display:none;")
 
 
     process_page_content = generate_themed_page(page_body=Container(
