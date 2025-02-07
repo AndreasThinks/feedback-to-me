@@ -175,17 +175,9 @@ def send_confirmation_email(recipient: str, token: str, recipient_first_name: st
 # -----------------------
 
 @app.get("/")
-def get(req, sess):
-    # if the user is not logged in, show the static landing page
-    # if the user is logged in, redirect to dashboard
-    auth = req.scope["auth"] = sess.get("auth", None)
-    logger.debug(f"Root path accessed with auth: {auth}")
-    if not auth:
-        logger.debug("User not authenticated, redirecting to homepage")
-        return RedirectResponse("/homepage", status_code=303)
-    else:
-        logger.debug("User authenticated, redirecting to dashboard")
-        return RedirectResponse("/dashboard", status_code=303)
+def get():
+    return generate_themed_page(landing_page)
+
 
 @app.get("/homepage")
 def get():
