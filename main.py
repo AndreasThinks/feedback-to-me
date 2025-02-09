@@ -492,8 +492,8 @@ def get_new_feedback():
            cls="qualities-checkboxes")
         ),
         Div(
-            H3("Other Qualities (comma separated)"),
-            Input(name="custom_qualities", type="text", placeholder="Enter custom qualities separated by commas")
+            H3("Other Qualities (one per line)"),
+            Textarea(name="custom_qualities", placeholder="Enter custom qualities, one per line", rows=2)
         ),
         Button("Begin collecting feedback", type="submit", cls="primary")
         , action="/create-new-feedback-process", method="post"
@@ -502,7 +502,7 @@ def get_new_feedback():
     return Titled("Start new feedback process", form)
 
 @app.post("/create-new-feedback-process")
-def create_new_feedback_process(process_title : str, peers_emails: str, supervisors_emails: str, reports_emails: str, sess, data: dict):
+def create_new_feedback_process(process_title : str, peers_emails: str, supervisors_emails: str, reports_emails: str, custom_qualities : str, sess, data: dict):
     logger.debug("create_new_feedback_process called with:")
     logger.debug(f"peers_emails: {peers_emails!r}")
     logger.debug(f"supervisors_emails: {supervisors_emails!r}")
@@ -531,10 +531,10 @@ def create_new_feedback_process(process_title : str, peers_emails: str, supervis
     user.credits -= total_requests
     users.update(user)
     selected_qualities = [q for q in FEEDBACK_QUALITIES if data.get(f"quality_{q}")]
-    custom_qualities = data.get("custom_qualities", "")
+    custom_qualities = [line.strip() for line in custom_qualities.splitlines() if line.strip()]
+
     if custom_qualities:
-        custom_list = [s.strip() for s in custom_qualities.split(",") if s.strip()]
-        selected_qualities.extend(custom_list)
+        selected_qualities.extend(custom_qualities)
     process_data = {
         "id": secrets.token_hex(8),
         "process_title" :  process_title,
@@ -790,13 +790,17 @@ def create_feeback_report(process_id : str):
 # -------------------------------
 # Route: Feedback Submission
 # -------------------------------
-@app.get("/new-feedback-form/{process_id}", name="new-feedback-form")
-def get_feedback_form(process_id: str):
+@app.get("/new-feedback-form/{request_token}", name="new-feedback-form")
+def get_feedback_form(request_token: str):
 
-    if process_id.startswith('process_id='):
-        process_id = process_id.replace('process_id=','')
+    # TODO: debug why this is happening
+    if request_token.startswith('process_id='):
+        request_token = request_token.replace('process_id=','')
 
-    original_process_id = feedback_request_tb[process_id].process_id
+    if feedback_request_tb[request_token].completed_at:
+        return('This report has already been submitted')
+
+    original_process_id = feedback_request_tb[request_token].process_id
 
     requestor_id = feedback_process_tb[original_process_id].user_id
     requestor_name = users("id=?", (requestor_id,))[0].first_name
@@ -814,7 +818,7 @@ def get_feedback_form(process_id: str):
 
     textbox_text = Div(f"Please write any additional feedback you have for {requestor_name}. Don't worry, we'll make sure it's all anonymous!", cls='marked')
 
-    onward_request_id = process_id
+    onward_request_id = request_token
     
     qualities = feedback_process_tb[original_process_id].qualities
     if not isinstance(qualities, list):
