@@ -124,10 +124,11 @@ register_form = Form(
             Div(Input(name="email", type="email", placeholder="Email *", required=True)),
             Div(Input(name="pwd", type="password", placeholder="Password *", required=True)),
             Div(Input(name="pwd_confirm", type="password", placeholder="Confirm Password *", required=True)),
+            Button("Register", type="submit", cls="secondary"),
+            P("The below is only helpful if you're taking part in a corporate process"),
             Div(Input(name="role", type="text", placeholder="Role (Optional, e.g. Software Engineer)", required=False)),
             Div(Input(name="company", type="text", placeholder="Company (Optional)", required=False)),
             Div(Input(name="team", type="text", placeholder="Team (Optional)", required=False)),
-        Button("Register", type="submit", cls="secondary"),
         action="/register-new-user", method="post",
         cls="registration-form")
 
