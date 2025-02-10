@@ -21,7 +21,7 @@ from pages import generate_themed_page, faq_page, error_message, login_or_regist
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
-from config import MIN_PEERS, MIN_SUPERVISORS, MIN_REPORTS, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS, BASE_URL
+from config import MINIMUM_SUBMISSIONS_REQUIRED, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS, BASE_URL
 from utils import beforeware
 
 import requests
@@ -451,18 +451,45 @@ def get(req):
 # -----------------------
 # Routes: New Feedback Process
 # -----------------------
+
+@app.post("/start-new-feedback-process/count")
+def count_submissions(peers_emails: str = "", supervisors_emails: str = "", reports_emails: str = ""):
+    # Count non-empty lines in each textarea
+    peers = len([line for line in peers_emails.splitlines() if line.strip()])
+    supervisors = len([line for line in supervisors_emails.splitlines() if line.strip()])
+    reports = len([line for line in reports_emails.splitlines() if line.strip()])
+    
+    total = peers + supervisors + reports
+    remaining = max(0, MINIMUM_SUBMISSIONS_REQUIRED - total)
+    
+    # Create message based on count
+    if total >= MINIMUM_SUBMISSIONS_REQUIRED:
+        message = f"✅ You have {total} submission(s). You can now submit the form."
+        button_disabled = False
+    else:
+        message = f"⚠️ You currently have {total} submission(s). You need {remaining} more to reach the minimum of {MINIMUM_SUBMISSIONS_REQUIRED}."
+        button_disabled = True
+    
+    # Return both the message div and the submit button with appropriate state
+    return (
+        Div(message, id="feedback-count-msg", cls="insufficient" if button_disabled else "sufficient", hx_swap_oob="true"),
+        Div(
+            Button("Begin collecting feedback", type="submit", cls="primary", id="submit-btn", 
+                  disabled=button_disabled, aria_invalid=str(button_disabled).lower()),
+            id="submit-container",
+            hx_swap_oob="true"
+        )
+    )
+
 @app.get("/start-new-feedback-process")
 def get_new_feedback():
-    if MIN_REPORTS == 0:
-        respondents_div = Div(
-            P(f"You'll need at least {MIN_PEERS} peers, {MIN_SUPERVISORS} supervisors, and {MIN_REPORTS} direct reports to generate your finalised report"),
+    respondents_div = Div(
+        Div(
+            P(f"You'll need at least {MINIMUM_SUBMISSIONS_REQUIRED} total feedback submissions to generate your finalised report."),
+            P("", id="feedback-count-msg"),
             cls="min-requirements"
         )
-    else:
-        respondents_div = Div(
-            P(f"You'll need at least {MIN_PEERS} peers and {MIN_SUPERVISORS} supervisors to generate your finalised report"),
-            cls="min-requirements"
-        )
+    )
     
     form = Form(
         Input(name='process_title', type='text', placeholder="Provide a short title for this process"),
@@ -472,15 +499,24 @@ def get_new_feedback():
         ),
         Div(
             H3("Peers"),
-            Textarea(name="peers_emails", placeholder="Enter peer emails, one per line", rows=3)
+            Textarea(name="peers_emails", placeholder="Enter peer emails, one per line", rows=3,
+                    hx_trigger="keyup changed delay:300ms",
+                    hx_post="/start-new-feedback-process/count",
+                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']")
         ),
         Div(
             H3("Supervisors"),
-            Textarea(name="supervisors_emails", placeholder="Enter supervisor emails, one per line", rows=3)
+            Textarea(name="supervisors_emails", placeholder="Enter supervisor emails, one per line", rows=3,
+                    hx_trigger="keyup changed delay:300ms",
+                    hx_post="/start-new-feedback-process/count",
+                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']")
         ),
         Div(
             H3("Reports"),
-            Textarea(name="reports_emails", placeholder="Enter report emails, one per line", rows=3)
+            Textarea(name="reports_emails", placeholder="Enter report emails, one per line", rows=3,
+                    hx_trigger="keyup changed delay:300ms",
+                    hx_post="/start-new-feedback-process/count",
+                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']")
         ),
         Div(
             H3("Select Qualities to be Graded On"),
@@ -495,7 +531,10 @@ def get_new_feedback():
             H3("Other Qualities (comma separated)"),
             Input(name="custom_qualities", type="text", placeholder="Enter custom qualities separated by commas")
         ),
-        Button("Begin collecting feedback", type="submit", cls="primary")
+        Div(
+            Button("Begin collecting feedback", type="submit", cls="primary", id="submit-btn"),
+            id="submit-container"
+        )
         , action="/create-new-feedback-process", method="post"
     )
     
@@ -540,9 +579,7 @@ def create_new_feedback_process(process_title : str, peers_emails: str, supervis
         "process_title" :  process_title,
         "user_id": user_id,
         "created_at": datetime.now(),
-        "min_required_peers": MIN_PEERS,
-        "min_required_supervisors": MIN_SUPERVISORS,
-        "min_required_reports": MIN_REPORTS,
+        "min_submissions_required": MINIMUM_SUBMISSIONS_REQUIRED,
         "qualities": selected_qualities,
         "feedback_count": 0,
         "feedback_report": None
@@ -588,10 +625,9 @@ def get_report_status_page(process_id : str):
         "report": len(feedback_request_tb("process_id=? AND user_type='report' AND completed_at is not Null", (process_id,))),
     }
     
+    total_submissions = sum(submission_counts.values())
     can_generate_report = (
-        submission_counts["peer"] >= process.min_required_peers and
-        submission_counts["supervisor"] >= process.min_required_supervisors and
-        submission_counts["report"] >= process.min_required_reports and
+        total_submissions >= process.min_submissions_required and
         not process.feedback_report
     )
 
@@ -604,17 +640,8 @@ def get_report_status_page(process_id : str):
     elif can_generate_report:
         opening_text = report_awaiting_generation_text
     else:
-        needed_peers = max(process.min_required_peers - submission_counts["peer"], 0)
-        needed_supervisors = max(process.min_required_supervisors - submission_counts["supervisor"], 0)
-        needed_reports = max(process.min_required_reports - submission_counts["report"], 0)
-        missing_parts = []
-        if needed_peers > 0:
-            missing_parts.append(f"{needed_peers} peer(s)")
-        if needed_supervisors > 0:
-            missing_parts.append(f"{needed_supervisors} supervisor(s)")
-        if needed_reports > 0:
-            missing_parts.append(f"{needed_reports} report(s)")
-        missing_text = "Additional responses required before report is available: " + ", ".join(missing_parts) if missing_parts else ""
+        needed_submissions = max(process.min_submissions_required - total_submissions, 0)
+        missing_text = f"Additional responses required before report is available: {needed_submissions} more submission(s)" if needed_submissions > 0 else ""
         opening_text = report_in_progress_text + " " + missing_text
 
     try:
@@ -766,10 +793,9 @@ def create_feeback_report(process_id : str):
             "supervisor": len(feedback_request_tb("process_id=? AND user_type='supervisor' AND completed_at IS NOT NULL", (process_id,))),
             "report": len(feedback_request_tb("process_id=? AND user_type='report' AND completed_at IS NOT NULL", (process_id,))),
         }
-        if (submission_counts["peer"] < process.min_required_peers or
-            submission_counts["supervisor"] < process.min_required_supervisors or
-            submission_counts["report"] < process.min_required_reports):
-            logger.warning(f"Attempted to generate report without sufficient feedback for process: {process_id}")
+        total_submissions = sum(submission_counts.values())
+        if total_submissions < process.min_submissions_required:
+            logger.warning(f"Attempted to generate report without sufficient feedback ({total_submissions}/{process.min_submissions_required}) for process: {process_id}")
             return "Not enough feedback submissions to generate report", 400
 
         feedback_report_input = create_feedback_report_input(process_id)

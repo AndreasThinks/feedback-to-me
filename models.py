@@ -33,9 +33,7 @@ class FeedbackProcess:
     process_title : str
     user_id: str
     created_at: datetime
-    min_required_peers: int
-    min_required_supervisors: int
-    min_required_reports: int
+    min_submissions_required: int
     qualities: List[str] # the list of qualities the feedback should cover
     feedback_count: int
     feedback_report: Optional[str] = None  # filled_when_report_generated
