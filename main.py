@@ -495,9 +495,6 @@ def get_new_feedback():
         Input(name='process_title', type='text', placeholder="Provide a short title for this process"),
         respondents_div,
         Div(
-            P("Enter emails (one per line) for each category:")
-        ),
-        Div(
             H3("Peers"),
             Textarea(name="peers_emails", placeholder="Enter peer emails, one per line", rows=3,
                     hx_trigger="keyup changed delay:300ms",
