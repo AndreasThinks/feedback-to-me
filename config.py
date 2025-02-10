@@ -10,8 +10,12 @@ from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from a .env file
 
 # These configuration values are now sourced from environment variables with defaults given below.
-MIN_PEERS = int(os.getenv("MIN_PEERS", "3"))
-MIN_SUPERVISORS = int(os.getenv("MIN_SUPERVISORS", "1"))
+# New approach: single minimum submissions requirement
+MINIMUM_SUBMISSIONS_REQUIRED = int(os.getenv("MINIMUM_SUBMISSIONS_REQUIRED", "5"))
+
+# Deprecated: old role-based minimums (kept for backward compatibility)
+MIN_PEERS = int(os.getenv("MIN_PEERS", "0"))
+MIN_SUPERVISORS = int(os.getenv("MIN_SUPERVISORS", "0"))
 MIN_REPORTS = int(os.getenv("MIN_REPORTS", "0"))
 
 STARTING_CREDITS = int(os.getenv("STARTING_CREDITS", "5"))

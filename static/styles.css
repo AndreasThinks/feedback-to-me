@@ -244,9 +244,41 @@
   justify-content: center
 }
 
-  .login-error-message {
+.login-error-message {
     display: flex; 
     justify-content: center;
     color: red;
     font-size: small;
-  } 
+}
+
+/* Feedback count message styles */
+#feedback-count-msg {
+    margin: 1rem 0;
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+#feedback-count-msg.insufficient {
+    color: var(--pico-del-color);
+    background-color: var(--pico-del-background-color);
+    border: 1px solid var(--pico-del-border-color);
+}
+
+#feedback-count-msg.sufficient {
+    color: var(--pico-ins-color);
+    background-color: var(--pico-ins-background-color);
+    border: 1px solid var(--pico-ins-border-color);
+}
+
+/* Use PicoCSS's built-in invalid state styling */
+button[aria-invalid="true"] {
+    --pico-background-color: var(--pico-invalid-background-color);
+    --pico-border-color: var(--pico-invalid-border-color);
+    cursor: not-allowed;
+}
+
+button[aria-invalid="true"]:hover {
+    --pico-background-color: var(--pico-invalid-background-color);
+    --pico-border-color: var(--pico-invalid-border-color);
+}
