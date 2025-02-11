@@ -22,7 +22,7 @@ from pages import generate_themed_page, faq_page, error_message, login_or_regist
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
 from config import MINIMUM_SUBMISSIONS_REQUIRED, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS, BASE_URL
-from utils import beforeware
+from utils import beforeware, validate_email_format, validate_password_strength, validate_passwords_match
 
 import requests
 import stripe
@@ -213,10 +213,6 @@ def get():
 def get():
     return login_form
 
-@app.get("/registration-form")
-def get():
-    return register_form
-
 @app.post("/login")
 def post_login(login: Login, sess):
     print(login)
@@ -262,14 +258,76 @@ def get(req):
     return register_form
 
 # -----------------------
+# Routes: Validation
+# -----------------------
+
+@app.post("/validate-password")
+def validate_password(pwd: str):
+    """Validate password strength and return feedback"""
+    score, issues = validate_password_strength(pwd)
+    
+    # Create progress bar color based on score
+    color = "var(--pico-color-red)" if score < 40 else \
+            "var(--pico-color-yellow)" if score < 70 else \
+            "var(--pico-color-green)"
+    
+    return Article(
+        Progress(value=str(score), max="100", id="pwd-strength", 
+                style=f"color: {color}; background: {color}"),
+        Div(
+            *(Li(issue) for issue in issues) if issues else [P("Password strength is good", cls="success")],
+            id="password-validation",
+            role="alert",
+            cls="error" if issues else "success"
+        ),
+    id="password-verification-status")
+
+@app.post("/validate-email")
+def validate_email(email: str):
+    """Validate email format and availability"""
+    is_valid, message = validate_email_format(email)
+    if not is_valid:
+        return Div(message, id="email-validation", role="alert", cls="error")
+    
+    try:
+        existing = users[email]
+        return Div("Email already in use", id="email-validation", role="alert", cls="error")
+    except Exception:
+        return Div("Email is available", id="email-validation", role="alert", cls="success")
+
+@app.post("/validate-password-match")
+def validate_password_match(pwd: str, pwd_confirm: str):
+    """Validate that passwords match"""
+    match, message = validate_passwords_match(pwd, pwd_confirm)
+    return Div(message, id="pwd-match-validation", role="alert", 
+              cls="success" if match else "error")
+
+# -----------------------
 # Routes: User Registration
 # -----------------------
 @app.post("/register-new-user")
-def post_register(email: str, first_name:str, role: str, company: str, team: str, pwd: str, sess):
+def post_register(email: str, first_name:str, role: str, company: str, team: str, pwd: str, pwd_confirm: str, sess):
     logger.debug(f"Registration attempt for email: {email}")
     if "auth" in sess:
         logger.debug("Clearing existing session auth")
         del sess["auth"]
+    
+    # Validate email format
+    is_valid_email, email_msg = validate_email_format(email)
+    if not is_valid_email:
+        return Titled("Registration Failed", P(email_msg))
+    
+    # Validate password strength
+    score, issues = validate_password_strength(pwd)
+    if score < 70:  # Require a strong password
+        return Titled("Registration Failed", 
+                     P("Password is not strong enough:"),
+                     Ul(*(Li(issue) for issue in issues)))
+    
+    # Validate passwords match
+    match, match_msg = validate_passwords_match(pwd, pwd_confirm)
+    if not match:
+        return Titled("Registration Failed", P(match_msg))
     
     user_data = {
         "id": secrets.token_hex(16),

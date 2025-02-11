@@ -120,11 +120,37 @@ error_message = Div(
 )
 
 register_form = Form(
-            Div(Input(name="first_name", type="text", placeholder="First Name *", required=True)),
-            Div(Input(name="email", type="email", placeholder="Email *", required=True)),
-            Div(Input(name="pwd", type="password", placeholder="Password *", required=True)),
-            Div(Input(name="pwd_confirm", type="password", placeholder="Confirm Password *", required=True)),
-            Button("Register", type="submit", cls="secondary"),
+            Div(
+                Input(name="first_name", type="text", placeholder="First Name *", required=True),
+                Div(id="first-name-validation", role="alert")
+            ),
+            Div(
+                Input(name="email", type="email", placeholder="Email *", required=True,
+                      hx_post="/validate-email",
+                      hx_trigger="change delay:300ms",
+                      hx_target="#email-validation"),
+                Div(id="email-validation", role="alert")
+            ),
+            Div(
+                Input(name="pwd", type="password", placeholder="Password *", required=True,
+                      hx_post="/validate-password",
+                      hx_trigger="keyup changed delay:300ms",
+                      hx_target="#password-verification-status",
+                      hx_swap='outerHTML'),
+                Article(
+                    Progress(value="0", max="100", id="pwd-strength"),
+                    Div(id="password-validation", role="alert")
+                ),
+            id='password-verification-status'),
+            Div(
+                Input(name="pwd_confirm", type="password", placeholder="Confirm Password *", required=True,
+                      hx_post="/validate-password-match",
+                      hx_trigger="keyup changed delay:300ms",
+                      hx_target="#pwd-match-validation",
+                      hx_include="[name='pwd']"),
+                Div(id="pwd-match-validation", role="alert")
+            ),
+            Button("Register", type="submit", cls="secondary", id="register-btn"),
             P("The below is only helpful if you're taking part in a corporate process"),
             Div(Input(name="role", type="text", placeholder="Role (Optional, e.g. Software Engineer)", required=False)),
             Div(Input(name="company", type="text", placeholder="Company (Optional)", required=False)),
