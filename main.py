@@ -175,39 +175,39 @@ def send_confirmation_email(recipient: str, token: str, recipient_first_name: st
 # -----------------------
 
 @app.get("/")
-def get():
-    return generate_themed_page(landing_page)
+def get(req):
+    return generate_themed_page(landing_page, auth=req.scope.get("auth"))
 
 
 @app.get("/homepage")
-def get():
-    return generate_themed_page(landing_page)
+def get(req):
+    return generate_themed_page(landing_page, auth=req.scope.get("auth"))
 
 @app.get("/about")
-def get():
-    return generate_themed_page(about_page)
+def get(req):
+    return generate_themed_page(about_page, auth=req.scope.get("auth"))
 
 @app.get("/faq")
 def get():
     return faq_page()
 
 @app.get("/privacy-policy")
-def get():
-    return generate_themed_page(privacy_policy_page)
+def get(req):
+    return generate_themed_page(privacy_policy_page, auth=req.scope.get("auth"))
 
 @app.get("/get-started")
-def get(sess):
+def get(req, sess):
     if "auth" in sess:
         return Redirect("/dashboard")
-    return generate_themed_page(login_or_register_page)
+    return generate_themed_page(login_or_register_page, auth=req.scope.get("auth"))
 
 # -----------------------
 # User Registration and Login Pages
 # -----------------------
 
 @app.get("/login-or-register")
-def get():
-    return login_or_register_page 
+def get(req):
+    return generate_themed_page(login_or_register_page, auth=req.scope.get("auth"))
 
 @app.get("/login-form")
 def get():
@@ -301,6 +301,27 @@ def validate_password_match(pwd: str, pwd_confirm: str):
     match, message = validate_passwords_match(pwd, pwd_confirm)
     return Div(message, id="pwd-match-validation", role="alert", 
               cls="success" if match else "error")
+
+@app.post("/validate-email-list")
+def validate_email_list(emails: str):
+    """Validate a list of emails, one per line"""
+    invalid_emails = []
+    for line in emails.splitlines():
+        email = line.strip()
+        if email:  # Only validate non-empty lines
+            is_valid, _ = validate_email_format(email)
+            if not is_valid:
+                invalid_emails.append(email)
+    
+    if not invalid_emails:
+        return Div("All emails are valid", id="email-validation", role="alert", cls="success")
+    return Div(
+        "Invalid email format:",
+        Ul(*(Li(email) for email in invalid_emails)),
+        id="email-validation",
+        role="alert",
+        cls="error"
+    )
 
 # -----------------------
 # Routes: User Registration
@@ -490,7 +511,7 @@ def get(req):
         H2(f"Hi {user.first_name}!"),
         P("Welcome to your dashboard. Here you can manage your feedback collection processes."),
         P(f"You have {user.credits} credits remaining"),
-        Div(Button("Start New Feedback Collection", hx_get="/start-new-feedback-process", hx_target="#main-content", hx_swap="innerHTML"), cls="collect-feedback-button"),
+        A(Button("Start New Feedback Collection"), href="/start-new-feedback-process", cls="collect-feedback-button"),
         Div(
             H3("Collecting responses"),
             *active_html or P("No active feedback collection processes.", cls="text-muted"),
@@ -512,21 +533,38 @@ def get(req):
 
 @app.post("/start-new-feedback-process/count")
 def count_submissions(peers_emails: str = "", supervisors_emails: str = "", reports_emails: str = ""):
-    # Count non-empty lines in each textarea
-    peers = len([line for line in peers_emails.splitlines() if line.strip()])
-    supervisors = len([line for line in supervisors_emails.splitlines() if line.strip()])
-    reports = len([line for line in reports_emails.splitlines() if line.strip()])
+    # Count and validate emails in each textarea
+    invalid_emails = []
+    valid_count = 0
     
-    total = peers + supervisors + reports
-    remaining = max(0, MINIMUM_SUBMISSIONS_REQUIRED - total)
+    for role, emails in [('peers', peers_emails), 
+                        ('supervisors', supervisors_emails), 
+                        ('reports', reports_emails)]:
+        for line in emails.splitlines():
+            email = line.strip()
+            if email:
+                is_valid, _ = validate_email_format(email)
+                if is_valid:
+                    valid_count += 1
+                else:
+                    invalid_emails.append(f"{email} ({role})")
     
-    # Create message based on count
-    if total >= MINIMUM_SUBMISSIONS_REQUIRED:
-        message = f"✅ You have {total} submission(s). You can now submit the form."
-        button_disabled = False
+    remaining = max(0, MINIMUM_SUBMISSIONS_REQUIRED - valid_count)
+    
+    # Create message based on count and validation
+    messages = []
+    if valid_count >= MINIMUM_SUBMISSIONS_REQUIRED:
+        messages.append(f"✅ You have {valid_count} valid submission(s).")
     else:
-        message = f"⚠️ You currently have {total} submission(s). You need {remaining} more to reach the minimum of {MINIMUM_SUBMISSIONS_REQUIRED}."
-        button_disabled = True
+        messages.append(f"⚠️ You currently have {valid_count} valid submission(s). You need {remaining} more to reach the minimum of {MINIMUM_SUBMISSIONS_REQUIRED}.")
+    
+    if invalid_emails:
+        messages.append("❌ Please fix the following invalid emails:")
+        messages.extend(f"  • {email}" for email in invalid_emails)
+    
+    # Button is disabled if we don't have enough valid emails
+    button_disabled = valid_count < MINIMUM_SUBMISSIONS_REQUIRED or bool(invalid_emails)
+    message = "\n".join(messages)
     
     # Return both the message div and the submit button with appropriate state
     return (
@@ -540,7 +578,8 @@ def count_submissions(peers_emails: str = "", supervisors_emails: str = "", repo
     )
 
 @app.get("/start-new-feedback-process")
-def get_new_feedback():
+def get_new_feedback(req):
+    auth = req.scope.get("auth")
     respondents_div = Div(
         Div(
             P(f"You'll need at least {MINIMUM_SUBMISSIONS_REQUIRED} total feedback submissions to generate your finalised report."),
@@ -557,21 +596,33 @@ def get_new_feedback():
             Textarea(name="peers_emails", placeholder="Enter peer emails, one per line", rows=3,
                     hx_trigger="keyup changed delay:300ms",
                     hx_post="/start-new-feedback-process/count",
-                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']")
+                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']"),
+            Div(cls="validation-result", 
+                hx_post="/validate-email-list",
+                hx_trigger="keyup changed delay:300ms from:previous",
+                hx_include="[name='peers_emails']")
         ),
         Div(
             H3("Supervisors"),
             Textarea(name="supervisors_emails", placeholder="Enter supervisor emails, one per line", rows=3,
                     hx_trigger="keyup changed delay:300ms",
                     hx_post="/start-new-feedback-process/count",
-                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']")
+                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']"),
+            Div(cls="validation-result",
+                hx_post="/validate-email-list",
+                hx_trigger="keyup changed delay:300ms from:previous",
+                hx_include="[name='supervisors_emails']")
         ),
         Div(
             H3("Reports"),
             Textarea(name="reports_emails", placeholder="Enter report emails, one per line", rows=3,
                     hx_trigger="keyup changed delay:300ms",
                     hx_post="/start-new-feedback-process/count",
-                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']")
+                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']"),
+            Div(cls="validation-result",
+                hx_post="/validate-email-list",
+                hx_trigger="keyup changed delay:300ms from:previous",
+                hx_include="[name='reports_emails']")
         ),
         Div(
             H3("Select Qualities to be Graded On"),
@@ -593,7 +644,7 @@ def get_new_feedback():
         , action="/create-new-feedback-process", method="post"
     )
     
-    return Titled("Start new feedback process", form)
+    return generate_themed_page(form, auth=auth, page_title="Your Dashboard")
 
 @app.post("/create-new-feedback-process")
 def create_new_feedback_process(process_title : str, peers_emails: str, supervisors_emails: str, reports_emails: str, custom_qualities : str, sess, data: dict):
@@ -603,6 +654,26 @@ def create_new_feedback_process(process_title : str, peers_emails: str, supervis
     logger.debug(f"reports_emails: {reports_emails!r}")
     logger.debug(f"Additional form data: {data!r}")
     user_id = sess.get("auth")
+    
+    # Validate all emails
+    invalid_emails = []
+    for email_list, role in [(peers_emails, "peers"), (supervisors_emails, "supervisors"), (reports_emails, "reports")]:
+        for line in email_list.splitlines():
+            email = line.strip()
+            if email:
+                is_valid, message = validate_email_format(email)
+                if not is_valid:
+                    invalid_emails.append(f"{email} ({role}): {message}")
+    
+    if invalid_emails:
+        return Titled(
+            "Invalid Email Addresses",
+            Container(
+                P("Please correct the following email addresses:"),
+                Ul(*(Li(email) for email in invalid_emails))
+            )
+        )
+    
     peers = [line.strip() for line in peers_emails.splitlines() if line.strip()]
     supervisors = [line.strip() for line in supervisors_emails.splitlines() if line.strip()]
     reports = [line.strip() for line in reports_emails.splitlines() if line.strip()]
@@ -662,7 +733,7 @@ def create_new_feedback_process(process_title : str, peers_emails: str, supervis
 # Routes: Existing Feedback Process
 # -----------------------
 @app.get("/feedback-process/{process_id}")
-def get_report_status_page(process_id : str):
+def get_report_status_page(process_id : str, req):
     try:
         process = feedback_process_tb[process_id]
     except Exception:
@@ -715,35 +786,67 @@ def get_report_status_page(process_id : str):
     )
     
     requests_list = []
-    for req in requests:
-        submission = req.completed_at
+    for feedback_request in requests:
+        submission = feedback_request.completed_at
         requests_list.append(
             Article(
                 Div(
-                Strong(f"{req.email}", cls='request-status-email'),
-                Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
+                Strong(f"{feedback_request.email}", cls='request-status-email'),
+                Div(
+                    Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
+                    Button("✕", 
+                          cls="delete-btn",
+                          onclick=f"window.location.href='/feedback-process/{process_id}/delete-request/{feedback_request.token}'")
+                ),
                 cls="request-status-header"),
                 Div(
                 P(
-                  Button("Copy link to clipboard", cls="request-status-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
+                  Button("Copy link to clipboard", cls="request-status-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=feedback_request.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
                   " ",
                   Div(
-                    (P(f"Email sent on {req.email_sent}") 
-                      if req.email_sent
+                    (P(f"Email sent on {feedback_request.email_sent}") 
+                      if feedback_request.email_sent
                       else Button("Send email", 
-                          hx_post=f"/feedback-process/{process_id}/send_email?token={req.token}", 
-                          hx_target=f"#email-status-{req.token}", 
+                          hx_post=f"/feedback-process/{process_id}/send_email?token={feedback_request.token}", 
+                          hx_target=f"#email-status-{feedback_request.token}", 
                           hx_swap="outerHTML",  cls="request-status-button")
                     ),
-                    id=f"email-status-{req.token}", 
+                    id=f"email-status-{feedback_request.token}", 
                   ), 
                 ),cls="form-links-row", hidden=True if submission else False),
-                cls=f"request-{req.user_type}"
+                cls=f"request-{feedback_request.user_type}"
             )
         )
     
+    # Create collapsible new request form
+    new_request_form = Form(
+        Div(
+            Input(type="email", name="email", placeholder="Enter email address", required=True,
+                  hx_post="/validate-email",
+                  hx_trigger="keyup changed delay:300ms",
+                  hx_target="next .validation-result"),
+            Div(cls="validation-result")
+        ),
+        Select(
+            Option("Select role", value="", selected=True, disabled=True),
+            Option("Peer", value="peer"),
+            Option("Report", value="report"),
+            Option("Supervisor", value="supervisor"),
+            name="role",
+            required=True
+        ),
+        Button("Add Request", type="submit"),
+        action=f"/feedback-process/{process_id}/add-request",
+        method="post"
+    )
+
     requests_section = Article(
-        *requests_list
+        *requests_list,
+        Details(
+            Summary("Add New Request", cls="button collapsible-toggle"),
+            Article(new_request_form, id="new-request-section"),
+        ),
+        id="requests-section"
     )
 
     report_section = Div(id="report-section")
@@ -757,21 +860,22 @@ def get_report_status_page(process_id : str):
             report_section = Div(
                 Button(
                     "Generate Feedback Report",
-                    hx_post=f"/feedback-process/{process_id}/generate_completed_feedback_report",
-                    hx_target="#report-section",
-                    hx_swap="outerHTML",
-                    hx_indicator="#loading-indicator"
+                    onclick=f"window.location.href='/feedback-process/{process_id}/generate_completed_feedback_report'"
                 ),
                 id="report-section"
             ),
             Div("Generating your report...", id="loading-indicator", aria_busy="true", style="display:none;")
 
 
-    process_page_content = generate_themed_page(page_body=Container(
+    process_page_content = generate_themed_page(
+        page_body=Container(
             status_section,
             requests_section,   
             report_section
-        ), page_title="Feedback Process {process_id}")
+        ), 
+        page_title="Feedback Process {process_id}",
+        auth=req.scope.get("auth")
+    )
     
     return process_page_content
 
@@ -839,7 +943,7 @@ Summary Statistics:
 """
     return report_input
 
-@app.post("/feedback-process/{process_id}/generate_completed_feedback_report")
+@app.get("/feedback-process/{process_id}/generate_completed_feedback_report")
 def create_feeback_report(process_id : str):
     try:
         process = feedback_process_tb[process_id]
@@ -860,11 +964,8 @@ def create_feeback_report(process_id : str):
         
         feedback_process_tb.update({"feedback_report": feedback_report}, process_id)
         
-        return Article(
-            H3("Feedback Report"),
-            Div(feedback_report, cls="markdown"),
-            id="report-section"
-        )
+        # Redirect to refresh the page
+        return RedirectResponse(f"/feedback-process/{process_id}", status_code=303)
         
     except Exception as e:
         logger.error(f"Error generating feedback report for process {process_id}: {str(e)}")
@@ -981,6 +1082,137 @@ def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         return "Error submitting feedback. Please try again.", 500
+
+@app.post("/feedback-process/{process_id}/add-request")
+def add_feedback_request(process_id: str, email: str, role: str, sess):
+    # Validate user owns this process
+    user_id = sess.get("auth")
+    if not user_id:
+        return "Unauthorized", 401
+    
+    try:
+        process = feedback_process_tb[process_id]
+        if process.user_id != user_id:
+            return "Unauthorized", 401
+        
+        # Check if user has enough credits
+        user = users("id=?", (user_id,))[0]
+        if user.credits < 1:
+            return Article(
+                P("You don't have enough credits to add another request. Please purchase more credits."),
+                id="requests-section"
+            )
+        
+        # Generate magic link and create request
+        link = generate_magic_link(email, process_id=process_id)
+        token = link.replace("new-feedback-form/token=", "")
+        
+        # Update request with role
+        feedback_request_tb.update({"user_type": role}, token=token)
+        
+        # Deduct credit
+        user.credits -= 1
+        users.update(user)
+        
+        # Return updated requests section
+        requests = feedback_request_tb("process_id=?", (process_id,))
+        requests_list = []
+        for feedback_request in requests:
+            submission = feedback_request.completed_at
+            requests_list.append(
+                Article(
+                    Div(
+                        Strong(f"{feedback_request.email}", cls='request-status-email'),
+                        Div(
+                            Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
+                            Button("✕", 
+                                  cls="delete-btn",
+                                  onclick=f"window.location.href='/feedback-process/{process_id}/delete-request/{feedback_request.token}'")
+                        ),
+                        cls="request-status-header"
+                    ),
+                    Div(
+                        P(
+                            Button("Copy link to clipboard", cls="request-status-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=feedback_request.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
+                            " ",
+                            Div(
+                                (P(f"Email sent on {feedback_request.email_sent}") 
+                                if feedback_request.email_sent
+                                else Button("Send email", 
+                                    hx_post=f"/feedback-process/{process_id}/send_email?token={feedback_request.token}", 
+                                    hx_target=f"#email-status-{feedback_request.token}", 
+                                    hx_swap="outerHTML",  cls="request-status-button")
+                                ),
+                                id=f"email-status-{feedback_request.token}", 
+                            ), 
+                        ),
+                        cls="form-links-row",
+                        hidden=True if submission else False
+                    ),
+                    cls=f"request-{feedback_request.user_type}"
+                )
+            )
+        
+        new_request_form = Article(
+            H3("Add New Request"),
+            Form(
+                Input(type="email", name="email", placeholder="Enter email address", required=True),
+                Select(
+                    Option("Select role", value="", selected=True, disabled=True),
+                    Option("Peer", value="peer"),
+                    Option("Report", value="report"),
+                    Option("Supervisor", value="supervisor"),
+                    name="role",
+                    required=True
+                ),
+                Button("Add Request", type="submit"),
+                action=f"/feedback-process/{process_id}/add-request",
+                method="post",
+                hx_post=f"/feedback-process/{process_id}/add-request",
+                hx_target="#requests-section",
+                hx_swap="outerHTML"
+            )
+        )
+        
+        # Redirect to refresh the page
+        return RedirectResponse(f"/feedback-process/{process_id}", status_code=303)
+        
+    except Exception as e:
+        logger.error(f"Error adding feedback request: {str(e)}")
+        return "Error adding feedback request", 500
+
+@app.get("/feedback-process/{process_id}/delete-request/{token}")
+def delete_feedback_request(process_id: str, token: str, sess):
+    # Validate user owns this process
+    user_id = sess.get("auth")
+    if not user_id:
+        return "Unauthorized", 401
+    
+    try:
+        # Verify process exists and user owns it
+        process = feedback_process_tb[process_id]
+        if process.user_id != user_id:
+            return "Unauthorized", 401
+        
+        # Get the request to delete
+        request = feedback_request_tb[token]
+        if request.process_id != process_id:
+            return "Invalid request", 400
+        
+        # Return credit to user
+        user = users("id=?", (user_id,))[0]
+        user.credits += 1
+        users.update(user)
+        
+        # Delete the request
+        feedback_request_tb.delete(token)
+        
+        # Redirect to refresh the page
+        return RedirectResponse(f"/feedback-process/{process_id}", status_code=303)
+        
+    except Exception as e:
+        logger.error(f"Error deleting feedback request: {str(e)}")
+        return "Error deleting feedback request", 500
 
 @app.post("/feedback-process/{process_id}/send_email")
 def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):
