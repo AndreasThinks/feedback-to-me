@@ -697,7 +697,7 @@ def get_report_status_page(process_id : str):
     else:
         needed_submissions = max(process.min_submissions_required - total_submissions, 0)
         missing_text = f"Additional responses required before report is available: {needed_submissions} more submission(s)" if needed_submissions > 0 else ""
-        opening_text = report_in_progress_text + " " + missing_text
+        opening_text = report_in_progress_text
 
     try:
         created_at_dt = datetime.fromisoformat(process.created_at)  # If stored in ISO format (e.g., "2025-02-07T14:30:00")
@@ -710,6 +710,8 @@ def get_report_status_page(process_id : str):
         H3(f"{process.process_title} {' (Complete)' if process.feedback_report else ' (In Progress)'}"),
         P(f"Created: {formatted_date}"),
         Div(opening_text, cls='marked'),
+        Div(missing_text)
+
     )
     
     requests_list = []
