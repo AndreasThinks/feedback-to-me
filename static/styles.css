@@ -301,6 +301,20 @@ progress::-moz-progress-bar {
   background-color: #c82333;
 }
 
+.delete-process-btn {
+  background-color: #dc3545;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.delete-process-btn:hover {
+  background-color: #c82333;
+}
+
 /* FAQ Styles */
 .faq-container {
   max-width: 800px;

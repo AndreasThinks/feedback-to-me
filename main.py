@@ -803,8 +803,13 @@ def get_report_status_page(process_id : str, req):
         H3(f"{process.process_title} {' (Complete)' if process.feedback_report else ' (In Progress)'}"),
         P(f"Created: {formatted_date}"),
         Div(opening_text, cls='marked'),
-        Div(missing_text)
-
+        Div(missing_text),
+        Div(
+            Button("Delete Process", 
+                  cls="delete-process-btn",
+                  onclick=f"if(confirm('Are you sure you want to delete this entire feedback process? Your credits for pending requests will be refunded, but completed questionnaires will be discarded.')) window.location.href='/feedback-process/{process_id}/delete'"),
+            style="margin-top: 1rem;"
+        )
     )
     
     requests_list = []
@@ -818,7 +823,7 @@ def get_report_status_page(process_id : str, req):
                     Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
                     Button("✕", 
                           cls="delete-btn",
-                          onclick=f"window.location.href='/feedback-process/{process_id}/delete-request/{feedback_request.token}'")
+                          onclick=f"if(confirm('Are you sure you want to delete this feedback request? Your credits will be refunded.')) window.location.href='/feedback-process/{process_id}/delete-request/{feedback_request.token}'")
                 ),
                 cls="request-status-header"),
                 Div(
@@ -1299,6 +1304,49 @@ def delete_feedback_request(process_id: str, token: str, sess):
     except Exception as e:
         logger.error(f"Error deleting feedback request: {str(e)}")
         return "Error deleting feedback request", 500
+
+@app.get("/feedback-process/{process_id}/delete")
+def delete_process(process_id: str, sess):
+    # Validate user owns this process
+    user_id = sess.get("auth")
+    if not user_id:
+        return "Unauthorized", 401
+    
+    try:
+        # Verify process exists and user owns it
+        process = feedback_process_tb[process_id]
+        if process.user_id != user_id:
+            return "Unauthorized", 401
+        
+        # Get all pending requests to refund credits
+        pending_requests = feedback_request_tb("process_id=? AND completed_at IS NULL", (process_id,))
+        
+        # Return credits to user for pending requests
+        if pending_requests:
+            user = users("id=?", (user_id,))[0]
+            user.credits += len(pending_requests)
+            users.update(user)
+        
+        # Delete all feedback submissions for this process
+        submissions = feedback_submission_tb("process_id=?", (process_id,))
+        for submission in submissions:
+            feedback_themes_tb.delete("feedback_id=?", (submission.id,))
+            feedback_submission_tb.delete(submission.id)
+        
+        # Delete all requests (both pending and completed)
+        requests = feedback_request_tb("process_id=?", (process_id,))
+        for request in requests:
+            feedback_request_tb.delete(request.token)
+            
+        # Finally delete the process itself
+        feedback_process_tb.delete(process_id)
+        
+        # Redirect to dashboard
+        return RedirectResponse("/dashboard", status_code=303)
+        
+    except Exception as e:
+        logger.error(f"Error deleting feedback process: {str(e)}")
+        return "Error deleting feedback process", 500
 
 @app.post("/feedback-process/{process_id}/send_email")
 def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):
