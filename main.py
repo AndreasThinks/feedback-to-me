@@ -175,39 +175,39 @@ def send_confirmation_email(recipient: str, token: str, recipient_first_name: st
 # -----------------------
 
 @app.get("/")
-def get():
-    return generate_themed_page(landing_page)
+def get(req):
+    return generate_themed_page(landing_page, auth=req.scope.get("auth"))
 
 
 @app.get("/homepage")
-def get():
-    return generate_themed_page(landing_page)
+def get(req):
+    return generate_themed_page(landing_page, auth=req.scope.get("auth"))
 
 @app.get("/about")
-def get():
-    return generate_themed_page(about_page)
+def get(req):
+    return generate_themed_page(about_page, auth=req.scope.get("auth"))
 
 @app.get("/faq")
 def get():
     return faq_page()
 
 @app.get("/privacy-policy")
-def get():
-    return generate_themed_page(privacy_policy_page)
+def get(req):
+    return generate_themed_page(privacy_policy_page, auth=req.scope.get("auth"))
 
 @app.get("/get-started")
-def get(sess):
+def get(req, sess):
     if "auth" in sess:
         return Redirect("/dashboard")
-    return generate_themed_page(login_or_register_page)
+    return generate_themed_page(login_or_register_page, auth=req.scope.get("auth"))
 
 # -----------------------
 # User Registration and Login Pages
 # -----------------------
 
 @app.get("/login-or-register")
-def get():
-    return login_or_register_page 
+def get(req):
+    return generate_themed_page(login_or_register_page, auth=req.scope.get("auth"))
 
 @app.get("/login-form")
 def get():
@@ -662,7 +662,7 @@ def create_new_feedback_process(process_title : str, peers_emails: str, supervis
 # Routes: Existing Feedback Process
 # -----------------------
 @app.get("/feedback-process/{process_id}")
-def get_report_status_page(process_id : str):
+def get_report_status_page(process_id : str, req):
     try:
         process = feedback_process_tb[process_id]
     except Exception:
@@ -715,37 +715,35 @@ def get_report_status_page(process_id : str):
     )
     
     requests_list = []
-    for req in requests:
-        submission = req.completed_at
+    for feedback_request in requests:
+        submission = feedback_request.completed_at
         requests_list.append(
             Article(
                 Div(
-                Strong(f"{req.email}", cls='request-status-email'),
+                Strong(f"{feedback_request.email}", cls='request-status-email'),
                 Div(
                     Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
                     Button("✕", 
-                          cls="delete-btn", 
-                          hx_post=f"/feedback-process/{process_id}/delete-request/{req.token}",
-                          hx_target="closest article",
-                          hx_swap="outerHTML")
+                          cls="delete-btn",
+                          onclick=f"window.location.href='/feedback-process/{process_id}/delete-request/{feedback_request.token}'")
                 ),
                 cls="request-status-header"),
                 Div(
                 P(
-                  Button("Copy link to clipboard", cls="request-status-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
+                  Button("Copy link to clipboard", cls="request-status-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=feedback_request.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
                   " ",
                   Div(
-                    (P(f"Email sent on {req.email_sent}") 
-                      if req.email_sent
+                    (P(f"Email sent on {feedback_request.email_sent}") 
+                      if feedback_request.email_sent
                       else Button("Send email", 
-                          hx_post=f"/feedback-process/{process_id}/send_email?token={req.token}", 
-                          hx_target=f"#email-status-{req.token}", 
+                          hx_post=f"/feedback-process/{process_id}/send_email?token={feedback_request.token}", 
+                          hx_target=f"#email-status-{feedback_request.token}", 
                           hx_swap="outerHTML",  cls="request-status-button")
                     ),
-                    id=f"email-status-{req.token}", 
+                    id=f"email-status-{feedback_request.token}", 
                   ), 
                 ),cls="form-links-row", hidden=True if submission else False),
-                cls=f"request-{req.user_type}"
+                cls=f"request-{feedback_request.user_type}"
             )
         )
     
@@ -762,10 +760,7 @@ def get_report_status_page(process_id : str):
         ),
         Button("Add Request", type="submit"),
         action=f"/feedback-process/{process_id}/add-request",
-        method="post",
-        hx_post=f"/feedback-process/{process_id}/add-request",
-        hx_target="#requests-section",
-        hx_swap="outerHTML"
+        method="post"
     )
 
     requests_section = Article(
@@ -788,21 +783,22 @@ def get_report_status_page(process_id : str):
             report_section = Div(
                 Button(
                     "Generate Feedback Report",
-                    hx_post=f"/feedback-process/{process_id}/generate_completed_feedback_report",
-                    hx_target="#report-section",
-                    hx_swap="outerHTML",
-                    hx_indicator="#loading-indicator"
+                    onclick=f"window.location.href='/feedback-process/{process_id}/generate_completed_feedback_report'"
                 ),
                 id="report-section"
             ),
             Div("Generating your report...", id="loading-indicator", aria_busy="true", style="display:none;")
 
 
-    process_page_content = generate_themed_page(page_body=Container(
+    process_page_content = generate_themed_page(
+        page_body=Container(
             status_section,
             requests_section,   
             report_section
-        ), page_title="Feedback Process {process_id}")
+        ), 
+        page_title="Feedback Process {process_id}",
+        auth=req.scope.get("auth")
+    )
     
     return process_page_content
 
@@ -870,7 +866,7 @@ Summary Statistics:
 """
     return report_input
 
-@app.post("/feedback-process/{process_id}/generate_completed_feedback_report")
+@app.get("/feedback-process/{process_id}/generate_completed_feedback_report")
 def create_feeback_report(process_id : str):
     try:
         process = feedback_process_tb[process_id]
@@ -891,11 +887,8 @@ def create_feeback_report(process_id : str):
         
         feedback_process_tb.update({"feedback_report": feedback_report}, process_id)
         
-        return Article(
-            H3("Feedback Report"),
-            Div(feedback_report, cls="markdown"),
-            id="report-section"
-        )
+        # Redirect to refresh the page
+        return RedirectResponse(f"/feedback-process/{process_id}", status_code=303)
         
     except Exception as e:
         logger.error(f"Error generating feedback report for process {process_id}: {str(e)}")
@@ -1047,41 +1040,39 @@ def add_feedback_request(process_id: str, email: str, role: str, sess):
         # Return updated requests section
         requests = feedback_request_tb("process_id=?", (process_id,))
         requests_list = []
-        for req in requests:
-            submission = req.completed_at
+        for feedback_request in requests:
+            submission = feedback_request.completed_at
             requests_list.append(
                 Article(
                     Div(
-                        Strong(f"{req.email}", cls='request-status-email'),
+                        Strong(f"{feedback_request.email}", cls='request-status-email'),
                         Div(
                             Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
                             Button("✕", 
-                                  cls="delete-btn", 
-                                  hx_post=f"/feedback-process/{process_id}/delete-request/{req.token}",
-                                  hx_target="closest article",
-                                  hx_swap="outerHTML")
+                                  cls="delete-btn",
+                                  onclick=f"window.location.href='/feedback-process/{process_id}/delete-request/{feedback_request.token}'")
                         ),
                         cls="request-status-header"
                     ),
                     Div(
                         P(
-                            Button("Copy link to clipboard", cls="request-status-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
+                            Button("Copy link to clipboard", cls="request-status-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=feedback_request.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
                             " ",
                             Div(
-                                (P(f"Email sent on {req.email_sent}") 
-                                if req.email_sent
+                                (P(f"Email sent on {feedback_request.email_sent}") 
+                                if feedback_request.email_sent
                                 else Button("Send email", 
-                                    hx_post=f"/feedback-process/{process_id}/send_email?token={req.token}", 
-                                    hx_target=f"#email-status-{req.token}", 
+                                    hx_post=f"/feedback-process/{process_id}/send_email?token={feedback_request.token}", 
+                                    hx_target=f"#email-status-{feedback_request.token}", 
                                     hx_swap="outerHTML",  cls="request-status-button")
                                 ),
-                                id=f"email-status-{req.token}", 
+                                id=f"email-status-{feedback_request.token}", 
                             ), 
                         ),
                         cls="form-links-row",
                         hidden=True if submission else False
                     ),
-                    cls=f"request-{req.user_type}"
+                    cls=f"request-{feedback_request.user_type}"
                 )
             )
         
@@ -1106,17 +1097,14 @@ def add_feedback_request(process_id: str, email: str, role: str, sess):
             )
         )
         
-        return Article(
-            new_request_form,
-            *requests_list,
-            id="requests-section"
-        )
+        # Redirect to refresh the page
+        return RedirectResponse(f"/feedback-process/{process_id}", status_code=303)
         
     except Exception as e:
         logger.error(f"Error adding feedback request: {str(e)}")
         return "Error adding feedback request", 500
 
-@app.post("/feedback-process/{process_id}/delete-request/{token}")
+@app.get("/feedback-process/{process_id}/delete-request/{token}")
 def delete_feedback_request(process_id: str, token: str, sess):
     # Validate user owns this process
     user_id = sess.get("auth")
@@ -1142,8 +1130,8 @@ def delete_feedback_request(process_id: str, token: str, sess):
         # Delete the request
         feedback_request_tb.delete(token)
         
-        # Return empty response (HTMX will remove the element)
-        return ""
+        # Redirect to refresh the page
+        return RedirectResponse(f"/feedback-process/{process_id}", status_code=303)
         
     except Exception as e:
         logger.error(f"Error deleting feedback request: {str(e)}")
