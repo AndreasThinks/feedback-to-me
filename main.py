@@ -551,24 +551,45 @@ def count_submissions(peers_emails: str = "", supervisors_emails: str = "", repo
     
     remaining = max(0, MINIMUM_SUBMISSIONS_REQUIRED - valid_count)
     
-    # Create message based on count and validation
-    messages = []
+    # Create validation status content
+    status_content = []
     if valid_count >= MINIMUM_SUBMISSIONS_REQUIRED:
-        messages.append(f"✅ You have {valid_count} valid submission(s).")
+        status_content.append(
+            Div(
+                Span("✅", cls="status-icon"),
+                f"You have {valid_count} valid submission(s).",
+                cls="status-line success"
+            )
+        )
     else:
-        messages.append(f"⚠️ You currently have {valid_count} valid submission(s). You need {remaining} more to reach the minimum of {MINIMUM_SUBMISSIONS_REQUIRED}.")
+        status_content.append(
+            Div(
+                Span("⚠️", cls="status-icon"),
+                f"You currently have {valid_count} valid submission(s).",
+                P(f"Need {remaining} more to reach the minimum of {MINIMUM_SUBMISSIONS_REQUIRED}."),
+                cls="status-line warning"
+            )
+        )
     
     if invalid_emails:
-        messages.append("❌ Please fix the following invalid emails:")
-        messages.extend(f"  • {email}" for email in invalid_emails)
+        status_content.append(
+            Div(
+                Div(
+                    Span("❌", cls="status-icon"),
+                    "Please fix the following invalid emails:",
+                    cls="invalid-header"
+                ),
+                Ul(*(Li(email) for email in invalid_emails)),
+                cls="invalid-list"
+            )
+        )
     
     # Button is disabled if we don't have enough valid emails
     button_disabled = valid_count < MINIMUM_SUBMISSIONS_REQUIRED or bool(invalid_emails)
-    message = "\n".join(messages)
     
     # Return both the message div and the submit button with appropriate state
     return (
-        Div(message, id="feedback-count-msg", cls="insufficient" if button_disabled else "sufficient", hx_swap_oob="true"),
+        Div(*status_content, id="feedback-count-msg", cls="insufficient" if button_disabled else "sufficient", hx_swap_oob="true"),
         Div(
             Button("Begin collecting feedback", type="submit", cls="primary", id="submit-btn", 
                   disabled=button_disabled, aria_invalid=str(button_disabled).lower()),
