@@ -1,3 +1,33 @@
+/* Alpha Testing Styles */
+.alpha-banner {
+  background: #fff3cd;
+  color: #856404;
+  border-bottom: 2px solid #ffeeba;
+  padding: 0.75rem;
+  text-align: center;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.alpha-badge {
+  background: #ffd54f;
+  color: #856404;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8em;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+}
+
+.alpha-warning {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+  border-radius: 4px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
 /* Validation styles */
 [role="alert"] {
   margin: 0.5rem 0;

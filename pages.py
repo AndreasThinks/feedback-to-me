@@ -6,16 +6,35 @@ from models import users
 
 def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
     """Generate a themed page with appropriate navigation bar based on auth status"""
+    from main import alpha_mode
+    
     nav_bar = navigation_bar_logged_out
     if auth:
         user = users("id=?", (auth,))[0]
         nav_bar = navigation_bar_logged_in(user)
     else:
         nav_bar = navigation_bar_logged_out
+
+    # Add alpha badge to title if in alpha mode
+    if alpha_mode:
+        page_title = f"{page_title} " + Span("ALPHA", cls="alpha-badge")
+
+    # Create alpha banner if in alpha mode
+    alpha_elements = []
+    if alpha_mode:
+        alpha_elements.extend([
+            Div("🚧 This site is in alpha testing - please don't use it with sensitive data 🚧", cls="alpha-banner"),
+            Div(
+                "⚠️ Alpha Testing Notice: This is an early version of Feedback to Me. While functional, it may contain bugs or undergo significant changes. We recommend not using it for critical feedback processes at this time.",
+                cls="alpha-warning"
+            ) if "landing-page" in str(page_body) else None
+        ])
+
     return (Title(page_title),
     Favicon('static/favicon.ico', dark_icon='static/favicon.ico'),
     Container(
         nav_bar,
+        *[el for el in alpha_elements if el is not None],
         Div(page_body, id="main-content"),
         footer_bar
     ))
