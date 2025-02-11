@@ -217,7 +217,7 @@ def generate_completed_feedback_report(feedback_input: str) -> str:
         logger.debug("Starting generation of complete feedback report.")
         # Instantiate LLM for report generation using a different Gemini model
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash-001",
+            model="gemini-2.0-flash-thinking-exp",
             api_key=os.getenv("GEMINI_API_KEY"),
             temperature=0.7,
             max_tokens=8192,
@@ -229,23 +229,39 @@ def generate_completed_feedback_report(feedback_input: str) -> str:
 
 The report should:
 1. Start with an executive summary highlighting key strengths and areas for improvement.
-2. Include a detailed analysis of the quality ratings, explaining their meaning.
+2. Analyze quality ratings in detail:
+   - Compare ratings across different roles (peers, supervisors, reports)
+   - Highlight significant variations between role perspectives (>1 point difference)
+   - Consider both averages and rating ranges
+   - Note when sample sizes are small (< 3 responses)
+   - Explain what high variance might indicate (e.g., inconsistent performance or different contexts)
 3. Discuss the identified themes by grouping related feedback together.
-4. Provide actionable recommendations based on the feedback.
+4. Provide actionable recommendations based on both ratings and themes.
 5. Use a professional, constructive tone throughout.
 6. Format everything in markdown for easy reading.
 7. Do not output anything other than the markdown text.
+
+Special considerations:
+- If a role has few responses, acknowledge the limited sample size
+- When there are significant differences between role perspectives, explore potential reasons
+- For qualities with high variance (>1.5), discuss possible contextual factors
+- Look for patterns where certain roles consistently rate differently
+- Consider how the min/max ranges might indicate specific situations or contexts
 
 Here is the feedback data to analyze:
 
 {feedback_input}
 
 Please generate a comprehensive feedback report that is:
-- Well-structured with clear sections.
-- Written in a professional tone.
-- Balanced between strengths and areas for improvement.
-- Focused on actionable insights.
-- Fully formatted in markdown with appropriate headers and bullet points.
+- Well-structured with clear sections
+- Written in a professional tone
+- Balanced between strengths and areas for improvement
+- Focused on actionable insights
+- Includes role-specific perspectives when available
+- Acknowledges data limitations where relevant
+- Highlights significant rating variations between roles
+- Discusses potential reasons for high variance scores
+- Fully formatted in markdown with appropriate headers and bullet points
 
 You should return the markdown directly, with no additional formatting needed. JUST OUTPUT THE MARKDOWN."""
         

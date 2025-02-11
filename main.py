@@ -904,28 +904,67 @@ def create_feedback_report_input(process_id):
     process = feedback_process_tb[process_id]
     submissions = feedback_submission_tb("process_id=?", (process_id,))
     
-    quality_stats = {}
-    import json
-    for quality in process.qualities:
-        rating_values = []
-        for s in submissions:
-            r = s.ratings
-            if isinstance(r, str):
-                try:
-                    r = json.loads(r)
-                except Exception:
-                    r = {}
-            if quality in r:
-                rating_values.append(r[quality])
-        if rating_values:
-            avg = sum(rating_values) / len(rating_values)
-            variance = sum((r - avg) ** 2 for r in rating_values) / len(rating_values)
-            quality_stats[quality] = {
-                "average": round(avg, 2),
-                "variance": round(variance, 2),
-                "count": len(rating_values)
-            }
+    # Initialize statistics structure
+    role_stats = {
+        "peer": {"qualities": {}, "count": 0},
+        "supervisor": {"qualities": {}, "count": 0},
+        "report": {"qualities": {}, "count": 0}
+    }
     
+    overall_stats = {}
+    import json
+    from collections import defaultdict
+
+    # Helper function to calculate statistics
+    def calc_stats(values):
+        if not values:
+            return None
+        n = len(values)
+        avg = sum(values) / n
+        variance = sum((x - avg) ** 2 for x in values) / n if n > 1 else 0
+        return {
+            "average": round(avg, 2),
+            "variance": round(variance, 2),
+            "count": n,
+            "min": min(values),
+            "max": max(values)
+        }
+
+    # Collect ratings by role and quality
+    role_ratings = defaultdict(lambda: defaultdict(list))
+    for s in submissions:
+        r = s.ratings
+        if isinstance(r, str):
+            try:
+                r = json.loads(r)
+            except Exception:
+                r = {}
+        
+        # Get user type from feedback request
+        request = feedback_request_tb("token=?", (s.request_id,))[0]
+        role = request.user_type
+        role_stats[role]["count"] += 1
+        
+        for quality in process.qualities:
+            if quality in r:
+                role_ratings[role][quality].append(r[quality])
+
+    # Calculate statistics for each role and quality
+    for role in role_stats:
+        for quality in process.qualities:
+            values = role_ratings[role][quality]
+            if values:
+                role_stats[role]["qualities"][quality] = calc_stats(values)
+
+    # Calculate overall statistics for each quality
+    for quality in process.qualities:
+        all_values = []
+        for role in role_ratings:
+            all_values.extend(role_ratings[role][quality])
+        if all_values:
+            overall_stats[quality] = calc_stats(all_values)
+    
+    # Get themed feedback
     themes = feedback_themes_tb("feedback_id IN (SELECT id FROM feedback_submission WHERE process_id=?)", (process_id,))
     themed_feedback = {
         "positive": [t.theme for t in themes if t.sentiment == "positive"],
@@ -935,14 +974,35 @@ def create_feedback_report_input(process_id):
     
     report_input = f"""Feedback Report Summary for Process {process_id}
 
-Quality Ratings:
+Overall Quality Ratings:
 {'-' * 40}"""
-    for quality, stats in quality_stats.items():
-        report_input += f"""
+
+    for quality, stats in overall_stats.items():
+        if stats:
+            report_input += f"""
 {quality}:
 - Average Rating: {stats['average']}
+- Rating Range: {stats['min']} - {stats['max']}
 - Rating Variance: {stats['variance']}
 - Number of Ratings: {stats['count']}"""
+
+    report_input += f"""
+
+Role-Based Quality Analysis:
+{'-' * 40}"""
+
+    for role, data in role_stats.items():
+        if data["count"] > 0:
+            report_input += f"""
+
+{role.title()} Feedback (from {data['count']} respondents):"""
+            for quality, stats in data["qualities"].items():
+                if stats:
+                    report_input += f"""
+{quality}:
+- Average Rating: {stats['average']}
+- Rating Range: {stats['min']} - {stats['max']}
+- Rating Variance: {stats['variance']}"""
 
     report_input += f"""
 
@@ -961,6 +1021,10 @@ Neutral Observations:
 Summary Statistics:
 - Total Submissions: {len(submissions)}
 - Total Themes Identified: {len(themes)}
+- Breakdown by Role:
+  * Peers: {role_stats['peer']['count']}
+  * Supervisors: {role_stats['supervisor']['count']}
+  * Reports: {role_stats['report']['count']}
 """
     return report_input
 
