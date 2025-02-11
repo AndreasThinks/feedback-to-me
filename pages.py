@@ -17,7 +17,7 @@ def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
 
     # Add alpha badge to title if in alpha mode
     if alpha_mode:
-        page_title = f"{page_title} " + Span("ALPHA", cls="alpha-badge")
+        page_title = f"{page_title} " "ALPHA"
 
     # Create alpha banner if in alpha mode
     alpha_elements = []
