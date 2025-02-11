@@ -533,21 +533,38 @@ def get(req):
 
 @app.post("/start-new-feedback-process/count")
 def count_submissions(peers_emails: str = "", supervisors_emails: str = "", reports_emails: str = ""):
-    # Count non-empty lines in each textarea
-    peers = len([line for line in peers_emails.splitlines() if line.strip()])
-    supervisors = len([line for line in supervisors_emails.splitlines() if line.strip()])
-    reports = len([line for line in reports_emails.splitlines() if line.strip()])
+    # Count and validate emails in each textarea
+    invalid_emails = []
+    valid_count = 0
     
-    total = peers + supervisors + reports
-    remaining = max(0, MINIMUM_SUBMISSIONS_REQUIRED - total)
+    for role, emails in [('peers', peers_emails), 
+                        ('supervisors', supervisors_emails), 
+                        ('reports', reports_emails)]:
+        for line in emails.splitlines():
+            email = line.strip()
+            if email:
+                is_valid, _ = validate_email_format(email)
+                if is_valid:
+                    valid_count += 1
+                else:
+                    invalid_emails.append(f"{email} ({role})")
     
-    # Create message based on count
-    if total >= MINIMUM_SUBMISSIONS_REQUIRED:
-        message = f"✅ You have {total} submission(s). You can now submit the form."
-        button_disabled = False
+    remaining = max(0, MINIMUM_SUBMISSIONS_REQUIRED - valid_count)
+    
+    # Create message based on count and validation
+    messages = []
+    if valid_count >= MINIMUM_SUBMISSIONS_REQUIRED:
+        messages.append(f"✅ You have {valid_count} valid submission(s).")
     else:
-        message = f"⚠️ You currently have {total} submission(s). You need {remaining} more to reach the minimum of {MINIMUM_SUBMISSIONS_REQUIRED}."
-        button_disabled = True
+        messages.append(f"⚠️ You currently have {valid_count} valid submission(s). You need {remaining} more to reach the minimum of {MINIMUM_SUBMISSIONS_REQUIRED}.")
+    
+    if invalid_emails:
+        messages.append("❌ Please fix the following invalid emails:")
+        messages.extend(f"  • {email}" for email in invalid_emails)
+    
+    # Button is disabled if we don't have enough valid emails
+    button_disabled = valid_count < MINIMUM_SUBMISSIONS_REQUIRED or bool(invalid_emails)
+    message = "\n".join(messages)
     
     # Return both the message div and the submit button with appropriate state
     return (
@@ -582,7 +599,7 @@ def get_new_feedback(req):
                     hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']"),
             Div(cls="validation-result", 
                 hx_post="/validate-email-list",
-                hx_trigger="keyup changed delay:500ms from:previous",
+                hx_trigger="keyup changed delay:300ms from:previous",
                 hx_include="[name='peers_emails']")
         ),
         Div(
@@ -593,7 +610,7 @@ def get_new_feedback(req):
                     hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']"),
             Div(cls="validation-result",
                 hx_post="/validate-email-list",
-                hx_trigger="keyup changed delay:500ms from:previous",
+                hx_trigger="keyup changed delay:300ms from:previous",
                 hx_include="[name='supervisors_emails']")
         ),
         Div(
@@ -604,7 +621,7 @@ def get_new_feedback(req):
                     hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']"),
             Div(cls="validation-result",
                 hx_post="/validate-email-list",
-                hx_trigger="keyup changed delay:500ms from:previous",
+                hx_trigger="keyup changed delay:300ms from:previous",
                 hx_include="[name='reports_emails']")
         ),
         Div(
