@@ -803,7 +803,7 @@ def get_report_status_page(process_id : str, req):
         H3(f"{process.process_title} {' (Complete)' if process.feedback_report else ' (In Progress)'}"),
         P(f"Created: {formatted_date}"),
         Div(opening_text, cls='marked'),
-        Div(missing_text),
+        Div(missing_text) if missing_text else None,
         Div(
             Button("Delete Process", 
                   cls="delete-process-btn",
