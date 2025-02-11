@@ -139,9 +139,9 @@ register_form = Form(
                       hx_swap='outerHTML'),
                 Article(
                     Progress(value="0", max="100", id="pwd-strength"),
-                    Div(id="password-validation", role="alert")
-                ),
-            id='password-verification-status'),
+                    Div(id="password-validation", role="alert"),
+                id='password-verification-status'),
+            ),
             Div(
                 Input(name="pwd_confirm", type="password", placeholder="Confirm Password *", required=True,
                       hx_post="/validate-password-match",
