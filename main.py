@@ -721,7 +721,14 @@ def get_report_status_page(process_id : str):
             Article(
                 Div(
                 Strong(f"{req.email}", cls='request-status-email'),
-                Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
+                Div(
+                    Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
+                    Button("✕", 
+                          cls="delete-btn", 
+                          hx_post=f"/feedback-process/{process_id}/delete-request/{req.token}",
+                          hx_target="closest article",
+                          hx_swap="outerHTML")
+                ),
                 cls="request-status-header"),
                 Div(
                 P(
@@ -742,8 +749,32 @@ def get_report_status_page(process_id : str):
             )
         )
     
+    # Create collapsible new request form
+    new_request_form = Form(
+        Input(type="email", name="email", placeholder="Enter email address", required=True),
+        Select(
+            Option("Select role", value="", selected=True, disabled=True),
+            Option("Peer", value="peer"),
+            Option("Report", value="report"),
+            Option("Supervisor", value="supervisor"),
+            name="role",
+            required=True
+        ),
+        Button("Add Request", type="submit"),
+        action=f"/feedback-process/{process_id}/add-request",
+        method="post",
+        hx_post=f"/feedback-process/{process_id}/add-request",
+        hx_target="#requests-section",
+        hx_swap="outerHTML"
+    )
+
     requests_section = Article(
-        *requests_list
+        *requests_list,
+        Details(
+            Summary("Add New Request", cls="button collapsible-toggle"),
+            Article(new_request_form, id="new-request-section"),
+        ),
+        id="requests-section"
     )
 
     report_section = Div(id="report-section")
@@ -981,6 +1012,142 @@ def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         return "Error submitting feedback. Please try again.", 500
+
+@app.post("/feedback-process/{process_id}/add-request")
+def add_feedback_request(process_id: str, email: str, role: str, sess):
+    # Validate user owns this process
+    user_id = sess.get("auth")
+    if not user_id:
+        return "Unauthorized", 401
+    
+    try:
+        process = feedback_process_tb[process_id]
+        if process.user_id != user_id:
+            return "Unauthorized", 401
+        
+        # Check if user has enough credits
+        user = users("id=?", (user_id,))[0]
+        if user.credits < 1:
+            return Article(
+                P("You don't have enough credits to add another request. Please purchase more credits."),
+                id="requests-section"
+            )
+        
+        # Generate magic link and create request
+        link = generate_magic_link(email, process_id=process_id)
+        token = link.replace("new-feedback-form/token=", "")
+        
+        # Update request with role
+        feedback_request_tb.update({"user_type": role}, token=token)
+        
+        # Deduct credit
+        user.credits -= 1
+        users.update(user)
+        
+        # Return updated requests section
+        requests = feedback_request_tb("process_id=?", (process_id,))
+        requests_list = []
+        for req in requests:
+            submission = req.completed_at
+            requests_list.append(
+                Article(
+                    Div(
+                        Strong(f"{req.email}", cls='request-status-email'),
+                        Div(
+                            Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
+                            Button("✕", 
+                                  cls="delete-btn", 
+                                  hx_post=f"/feedback-process/{process_id}/delete-request/{req.token}",
+                                  hx_target="closest article",
+                                  hx_swap="outerHTML")
+                        ),
+                        cls="request-status-header"
+                    ),
+                    Div(
+                        P(
+                            Button("Copy link to clipboard", cls="request-status-button", onclick=f"if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText('{generate_external_link(uri('new-feedback-form', process_id=req.token))}').then(()=>{{ let btn=this; btn.setAttribute('data-tooltip', 'Copied to clipboard!'); setTimeout(()=>{{ btn.removeAttribute('data-tooltip'); }}, 1000); }}); }} else {{ alert('Clipboard functionality is not supported in this browser.'); }}"),
+                            " ",
+                            Div(
+                                (P(f"Email sent on {req.email_sent}") 
+                                if req.email_sent
+                                else Button("Send email", 
+                                    hx_post=f"/feedback-process/{process_id}/send_email?token={req.token}", 
+                                    hx_target=f"#email-status-{req.token}", 
+                                    hx_swap="outerHTML",  cls="request-status-button")
+                                ),
+                                id=f"email-status-{req.token}", 
+                            ), 
+                        ),
+                        cls="form-links-row",
+                        hidden=True if submission else False
+                    ),
+                    cls=f"request-{req.user_type}"
+                )
+            )
+        
+        new_request_form = Article(
+            H3("Add New Request"),
+            Form(
+                Input(type="email", name="email", placeholder="Enter email address", required=True),
+                Select(
+                    Option("Select role", value="", selected=True, disabled=True),
+                    Option("Peer", value="peer"),
+                    Option("Report", value="report"),
+                    Option("Supervisor", value="supervisor"),
+                    name="role",
+                    required=True
+                ),
+                Button("Add Request", type="submit"),
+                action=f"/feedback-process/{process_id}/add-request",
+                method="post",
+                hx_post=f"/feedback-process/{process_id}/add-request",
+                hx_target="#requests-section",
+                hx_swap="outerHTML"
+            )
+        )
+        
+        return Article(
+            new_request_form,
+            *requests_list,
+            id="requests-section"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error adding feedback request: {str(e)}")
+        return "Error adding feedback request", 500
+
+@app.post("/feedback-process/{process_id}/delete-request/{token}")
+def delete_feedback_request(process_id: str, token: str, sess):
+    # Validate user owns this process
+    user_id = sess.get("auth")
+    if not user_id:
+        return "Unauthorized", 401
+    
+    try:
+        # Verify process exists and user owns it
+        process = feedback_process_tb[process_id]
+        if process.user_id != user_id:
+            return "Unauthorized", 401
+        
+        # Get the request to delete
+        request = feedback_request_tb[token]
+        if request.process_id != process_id:
+            return "Invalid request", 400
+        
+        # Return credit to user
+        user = users("id=?", (user_id,))[0]
+        user.credits += 1
+        users.update(user)
+        
+        # Delete the request
+        feedback_request_tb.delete(token)
+        
+        # Return empty response (HTMX will remove the element)
+        return ""
+        
+    except Exception as e:
+        logger.error(f"Error deleting feedback request: {str(e)}")
+        return "Error deleting feedback request", 500
 
 @app.post("/feedback-process/{process_id}/send_email")
 def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):

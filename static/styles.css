@@ -250,6 +250,27 @@ progress::-moz-progress-bar {
   transition: background 0.2s ease-in-out;
 }
 
+.delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #dc3545;
+  color: #fff;
+  font-size: 1rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+  padding: 0;
+  margin-left: 0.5rem;
+}
+
+.delete-btn:hover {
+  background-color: #c82333;
+}
+
 /* FAQ Styles */
 .faq-container {
   max-width: 800px;
@@ -330,4 +351,31 @@ button[aria-invalid="true"] {
 button[aria-invalid="true"]:hover {
     --pico-background-color: var(--pico-invalid-background-color);
     --pico-border-color: var(--pico-invalid-border-color);
+}
+
+/* Collapsible section styling */
+details[open] .collapsible-toggle {
+    background-color: var(--pico-primary-hover);
+}
+
+details > summary {
+    list-style: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.collapsible-toggle {
+    margin-top: 1rem;
+    width: fit-content;
+}
+
+#new-request-section {
+    padding: 1rem;
+    background: var(--pico-card-background-color);
+    border-radius: var(--pico-border-radius);
+    margin-top: 1rem;
 }
