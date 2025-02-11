@@ -64,7 +64,7 @@ navigation_bar_logged_out = Nav(
     Ul(
         Li(Strong(A("Feedback to Me", href="/")))),
     Ul(
-        Li(AX("About", href="/about")),
+        Li(AX("How It Works", href="/how-it-works")),
         Li(AX("FAQ", href="/faq")),
         Li(AX("Get Started", href='/get-started'))
     ),
@@ -77,7 +77,7 @@ def navigation_bar_logged_in(user):
             Li(Strong(A("Feedback to Me", href="/")))),
         Ul(
             Li(A("Dashboard", href="/dashboard")),
-            Li(A("About", href="/about")),
+            Li(A("How It Works", href="/how-it-works")),
             Li(AX("FAQ", href="/faq")),
             Li(Span(f"Credits: {user.credits}")),
             Li(A("Buy Credits", href="/buy-credits")),
@@ -88,14 +88,147 @@ def navigation_bar_logged_in(user):
 
 footer_bar = Footer(A("© 2025 Feedback to Me"), href=BASE_URL, cls='footer')
 
-about_page = Container(
-    H2("About the Feedback App"),
-    P("This is a simple app to collect feedback from your team."),
+how_it_works_page = Container(
+    H2("How Feedback to Me Works"),
+    Div("""
+## The Power of 360° Feedback
+
+360° feedback is a powerful tool for personal and professional development. By collecting insights from peers, supervisors, and reports, you get a comprehensive view of your strengths and areas for growth.
+
+## Our Process
+
+1. **Initial Setup**
+   - Create your account
+   - Choose the qualities you want feedback on
+   - Enter email addresses for your feedback providers
+
+2. **Feedback Collection**
+   - We send personalized survey links to your chosen participants
+   - Each participant provides anonymous ratings and written feedback
+   - Our AI ensures all feedback remains anonymous by removing identifying details
+
+3. **AI-Powered Analysis**
+   - Once enough responses are collected, our AI analyzes the feedback
+   - We identify common themes and patterns
+   - Statistical analysis shows how different groups perceive your performance
+
+4. **Comprehensive Report**
+   - Receive a detailed report with actionable insights
+   - View aggregated ratings across different qualities
+   - See anonymized themes from written feedback
+   - Get specific recommendations for growth
+
+## Privacy & Security
+
+Your privacy and data security are our top priorities. All feedback is anonymized, and we use enterprise-grade encryption to protect your information. Learn more in our [Privacy Policy](/privacy-policy).
+
+## Credit System
+
+- Start with free credits for your first feedback process
+- Purchase additional credits as needed
+- One credit = one feedback request
+- Credits never expire
+
+## Support
+
+Need help? Check our [FAQ](/faq) for common questions or contact our support team.
+    """, cls="marked"),
 )
 
 privacy_policy_page = Container(
     H2("Privacy Policy"),
-    P("We take your privacy seriously."),
+    Div("""
+## Introduction
+
+At Feedback to Me, we take your privacy seriously and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, and safeguard your information in compliance with GDPR and other applicable data protection laws.
+
+## Data We Collect
+
+### Account Information
+- Name and email address
+- Optional: Company, role, and team information
+- Password (encrypted)
+- Account creation date
+
+### Feedback Process Data
+- Email addresses of feedback providers
+- Feedback responses and ratings
+- Generated feedback reports
+- Usage statistics
+
+## How We Use Your Data
+
+### Essential Processing
+- Account management and authentication
+- Sending feedback requests
+- Generating feedback reports
+- Processing payments
+- Service communications
+
+### Legal Basis (GDPR Article 6)
+- Contract fulfillment for service provision
+- Legitimate interests for service improvement
+- Consent for marketing communications
+- Legal obligations for financial records
+
+## Data Protection
+
+### Security Measures
+- Enterprise-grade encryption
+- Regular security audits
+- Secure data centers
+- Access controls and monitoring
+
+### Data Retention
+- Account data: Until account deletion
+- Feedback data: 24 months
+- Payment records: As required by law
+- Marketing preferences: Until consent withdrawal
+
+## Your Rights
+
+Under GDPR, you have the right to:
+- Access your personal data
+- Correct inaccurate data
+- Request data deletion
+- Restrict processing
+- Data portability
+- Object to processing
+- Withdraw consent
+
+## Data Sharing
+
+We share data only with:
+- Essential service providers (e.g., payment processors)
+- When legally required
+- With your explicit consent
+
+We never sell your data to third parties.
+
+## Cookies & Tracking
+
+We use essential cookies for:
+- Authentication
+- Security
+- Basic analytics
+
+## International Transfers
+
+Data is processed in the EU/EEA with appropriate safeguards for any international transfers.
+
+## Changes to Policy
+
+We'll notify you of significant policy changes via email and website notices.
+
+## Contact Us
+
+For privacy inquiries or to exercise your rights:
+- Email: privacy@feedback-to.me
+- Address: [Company Address]
+- Data Protection Officer: dpo@feedback-to.me
+
+Last updated: February 2025
+    """, cls="marked"),
 )
 
 login_or_register_page = Container(
@@ -155,6 +288,12 @@ register_form = Form(
             Div(Input(name="role", type="text", placeholder="Role (Optional, e.g. Software Engineer)", required=False)),
             Div(Input(name="company", type="text", placeholder="Company (Optional)", required=False)),
             Div(Input(name="team", type="text", placeholder="Team (Optional)", required=False)),
+            P(
+                "By registering, you consent to our processing of your data as described in our ",
+                A("Privacy Policy", href="/privacy-policy"),
+                ". We ensure your data is handled securely and in compliance with GDPR.",
+                cls="privacy-consent"
+            ),
         action="/register-new-user", method="post",
         cls="registration-form")
 

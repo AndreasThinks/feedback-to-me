@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login, confirm_tokens_tb
-from pages import generate_themed_page, faq_page, error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, about_page, privacy_policy_page
+from pages import how_it_works_page, generate_themed_page, faq_page, error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, privacy_policy_page
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
@@ -183,9 +183,9 @@ def get(req):
 def get(req):
     return generate_themed_page(landing_page, auth=req.scope.get("auth"))
 
-@app.get("/about")
+@app.get("/how-it-works")
 def get(req):
-    return generate_themed_page(about_page, auth=req.scope.get("auth"))
+    return generate_themed_page(how_it_works_page, auth=req.scope.get("auth"))
 
 @app.get("/faq")
 def get():
