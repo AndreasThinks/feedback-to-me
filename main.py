@@ -302,6 +302,27 @@ def validate_password_match(pwd: str, pwd_confirm: str):
     return Div(message, id="pwd-match-validation", role="alert", 
               cls="success" if match else "error")
 
+@app.post("/validate-email-list")
+def validate_email_list(emails: str):
+    """Validate a list of emails, one per line"""
+    invalid_emails = []
+    for line in emails.splitlines():
+        email = line.strip()
+        if email:  # Only validate non-empty lines
+            is_valid, _ = validate_email_format(email)
+            if not is_valid:
+                invalid_emails.append(email)
+    
+    if not invalid_emails:
+        return Div("All emails are valid", id="email-validation", role="alert", cls="success")
+    return Div(
+        "Invalid email format:",
+        Ul(*(Li(email) for email in invalid_emails)),
+        id="email-validation",
+        role="alert",
+        cls="error"
+    )
+
 # -----------------------
 # Routes: User Registration
 # -----------------------
@@ -490,7 +511,7 @@ def get(req):
         H2(f"Hi {user.first_name}!"),
         P("Welcome to your dashboard. Here you can manage your feedback collection processes."),
         P(f"You have {user.credits} credits remaining"),
-        Div(Button("Start New Feedback Collection", hx_get="/start-new-feedback-process", hx_target="#main-content", hx_swap="innerHTML"), cls="collect-feedback-button"),
+        A(Button("Start New Feedback Collection"), href="/start-new-feedback-process", cls="collect-feedback-button"),
         Div(
             H3("Collecting responses"),
             *active_html or P("No active feedback collection processes.", cls="text-muted"),
@@ -540,7 +561,8 @@ def count_submissions(peers_emails: str = "", supervisors_emails: str = "", repo
     )
 
 @app.get("/start-new-feedback-process")
-def get_new_feedback():
+def get_new_feedback(req):
+    auth = req.scope.get("auth")
     respondents_div = Div(
         Div(
             P(f"You'll need at least {MINIMUM_SUBMISSIONS_REQUIRED} total feedback submissions to generate your finalised report."),
@@ -557,21 +579,33 @@ def get_new_feedback():
             Textarea(name="peers_emails", placeholder="Enter peer emails, one per line", rows=3,
                     hx_trigger="keyup changed delay:300ms",
                     hx_post="/start-new-feedback-process/count",
-                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']")
+                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']"),
+            Div(cls="validation-result", 
+                hx_post="/validate-email-list",
+                hx_trigger="keyup changed delay:500ms from:previous",
+                hx_include="[name='peers_emails']")
         ),
         Div(
             H3("Supervisors"),
             Textarea(name="supervisors_emails", placeholder="Enter supervisor emails, one per line", rows=3,
                     hx_trigger="keyup changed delay:300ms",
                     hx_post="/start-new-feedback-process/count",
-                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']")
+                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']"),
+            Div(cls="validation-result",
+                hx_post="/validate-email-list",
+                hx_trigger="keyup changed delay:500ms from:previous",
+                hx_include="[name='supervisors_emails']")
         ),
         Div(
             H3("Reports"),
             Textarea(name="reports_emails", placeholder="Enter report emails, one per line", rows=3,
                     hx_trigger="keyup changed delay:300ms",
                     hx_post="/start-new-feedback-process/count",
-                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']")
+                    hx_include="[name='peers_emails'],[name='supervisors_emails'],[name='reports_emails']"),
+            Div(cls="validation-result",
+                hx_post="/validate-email-list",
+                hx_trigger="keyup changed delay:500ms from:previous",
+                hx_include="[name='reports_emails']")
         ),
         Div(
             H3("Select Qualities to be Graded On"),
@@ -593,7 +627,7 @@ def get_new_feedback():
         , action="/create-new-feedback-process", method="post"
     )
     
-    return Titled("Start new feedback process", form)
+    return generate_themed_page(form, auth=auth, page_title="Your Dashboard")
 
 @app.post("/create-new-feedback-process")
 def create_new_feedback_process(process_title : str, peers_emails: str, supervisors_emails: str, reports_emails: str, custom_qualities : str, sess, data: dict):
@@ -603,6 +637,26 @@ def create_new_feedback_process(process_title : str, peers_emails: str, supervis
     logger.debug(f"reports_emails: {reports_emails!r}")
     logger.debug(f"Additional form data: {data!r}")
     user_id = sess.get("auth")
+    
+    # Validate all emails
+    invalid_emails = []
+    for email_list, role in [(peers_emails, "peers"), (supervisors_emails, "supervisors"), (reports_emails, "reports")]:
+        for line in email_list.splitlines():
+            email = line.strip()
+            if email:
+                is_valid, message = validate_email_format(email)
+                if not is_valid:
+                    invalid_emails.append(f"{email} ({role}): {message}")
+    
+    if invalid_emails:
+        return Titled(
+            "Invalid Email Addresses",
+            Container(
+                P("Please correct the following email addresses:"),
+                Ul(*(Li(email) for email in invalid_emails))
+            )
+        )
+    
     peers = [line.strip() for line in peers_emails.splitlines() if line.strip()]
     supervisors = [line.strip() for line in supervisors_emails.splitlines() if line.strip()]
     reports = [line.strip() for line in reports_emails.splitlines() if line.strip()]
@@ -749,7 +803,13 @@ def get_report_status_page(process_id : str, req):
     
     # Create collapsible new request form
     new_request_form = Form(
-        Input(type="email", name="email", placeholder="Enter email address", required=True),
+        Div(
+            Input(type="email", name="email", placeholder="Enter email address", required=True,
+                  hx_post="/validate-email",
+                  hx_trigger="keyup changed delay:300ms",
+                  hx_target="next .validation-result"),
+            Div(cls="validation-result")
+        ),
         Select(
             Option("Select role", value="", selected=True, disabled=True),
             Option("Peer", value="peer"),
