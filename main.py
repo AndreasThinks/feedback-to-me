@@ -783,6 +783,8 @@ def get_report_status_page(process_id : str, req):
     report_awaiting_generation_text = "You've received enough feedback to generate a report! Click the button when you're ready to create your report summary. "
     report_completed_text = "Your feedback process is complete, and your final report has been generated. "
     
+    missing_text = None  # Default value
+    
     if process.feedback_report:
         opening_text = report_completed_text
     elif can_generate_report:
