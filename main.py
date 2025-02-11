@@ -946,10 +946,10 @@ def create_feedback_report_input(process_id):
             try:
                 r = json.loads(r)
             except Exception:
-                r = {}
-        
-        # Get user type from feedback request
-        request = feedback_request_tb("token=?", (s.request_id,))[0]
+                r = {}  
+
+        request = feedback_request_tb[s.request_id]
+
         role = request.user_type
         role_stats[role]["count"] += 1
         
