@@ -784,7 +784,7 @@ def get_report_status_page(process_id : str, req):
     report_completed_text = "Your feedback process is complete, and your final report has been generated. "
     
     missing_text = None  # Default value
-    
+
     if process.feedback_report:
         opening_text = report_completed_text
     elif can_generate_report:
@@ -1038,32 +1038,27 @@ Summary Statistics:
 
 @app.get("/feedback-process/{process_id}/generate_completed_feedback_report")
 def create_feeback_report(process_id : str):
-    try:
-        process = feedback_process_tb[process_id]
-        submissions = feedback_submission_tb("process_id=?", (process_id,))
+    process = feedback_process_tb[process_id]
+    submissions = feedback_submission_tb("process_id=?", (process_id,))
 
-        submission_counts = {
-            "peer": len(feedback_request_tb("process_id=? AND user_type='peer' AND completed_at IS NOT NULL", (process_id,))),
-            "supervisor": len(feedback_request_tb("process_id=? AND user_type='supervisor' AND completed_at IS NOT NULL", (process_id,))),
-            "report": len(feedback_request_tb("process_id=? AND user_type='report' AND completed_at IS NOT NULL", (process_id,))),
-        }
-        total_submissions = sum(submission_counts.values())
-        if total_submissions < process.min_submissions_required:
-            logger.warning(f"Attempted to generate report without sufficient feedback ({total_submissions}/{process.min_submissions_required}) for process: {process_id}")
-            return "Not enough feedback submissions to generate report", 400
+    submission_counts = {
+        "peer": len(feedback_request_tb("process_id=? AND user_type='peer' AND completed_at IS NOT NULL", (process_id,))),
+        "supervisor": len(feedback_request_tb("process_id=? AND user_type='supervisor' AND completed_at IS NOT NULL", (process_id,))),
+        "report": len(feedback_request_tb("process_id=? AND user_type='report' AND completed_at IS NOT NULL", (process_id,))),
+    }
+    total_submissions = sum(submission_counts.values())
+    if total_submissions < process.min_submissions_required:
+        logger.warning(f"Attempted to generate report without sufficient feedback ({total_submissions}/{process.min_submissions_required}) for process: {process_id}")
+        return "Not enough feedback submissions to generate report", 400
 
-        feedback_report_input = create_feedback_report_input(process_id)
-        feedback_report = generate_completed_feedback_report(feedback_report_input)
-        
-        feedback_process_tb.update({"feedback_report": feedback_report}, process_id)
-        
-        # Redirect to refresh the page
-        return RedirectResponse(f"/feedback-process/{process_id}", status_code=303)
-        
-    except Exception as e:
-        logger.error(f"Error generating feedback report for process {process_id}: {str(e)}")
-        return "Error generating feedback report", 500
-
+    feedback_report_input = create_feedback_report_input(process_id)
+    feedback_report = generate_completed_feedback_report(feedback_report_input)
+    
+    feedback_process_tb.update({"feedback_report": feedback_report}, process_id)
+    
+    # Redirect to refresh the page
+    return RedirectResponse(f"/feedback-process/{process_id}", status_code=303)
+    
 # -------------------------------
 # Route: Feedback Submission
 # -------------------------------
@@ -1145,7 +1140,7 @@ def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
                     continue
         submission_data = {
             "id": secrets.token_hex(8),
-            "request_id": feedback_request.process_id,
+            "request_id": request_token,
             "feedback_text": feedback_text,
             "ratings": ratings,
             "process_id": feedback_request.process_id,
