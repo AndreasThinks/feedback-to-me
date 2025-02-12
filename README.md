@@ -32,6 +32,8 @@ graph TD
     A[Client] --> B[Nginx]
     B --> C[FastHTML App]
     C --> D[(SQLite Database)]
+    D --> H[Litestream]
+    H --> I[(GCS Backup)]
     C --> E[Stripe API]
     C --> F[SMTP2GO]
     C --> G[Google Gemini AI]
@@ -39,7 +41,7 @@ graph TD
 
 Key Components:
 - **Web Server**: FastHTML with Python backend
-- **Database**: SQLite (production-ready version uses PostgreSQL)
+- **Database**: SQLite with Litestream replication to Google Cloud Storage
 - **AI Processing**: Google Gemini via LangChain integration
 - **Payments**: Stripe Checkout integration
 - **Email**: SMTP2GO service
@@ -50,6 +52,7 @@ Key Components:
 - Python 3.10+
 - SQLite3
 - Node.js (for optional frontend builds)
+- Litestream (for database replication)
 
 ```bash
 # Clone repository
@@ -62,6 +65,10 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Install Litestream
+wget https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.deb
+sudo dpkg -i litestream-v0.3.13-linux-amd64.deb
 
 # Set up environment variables
 cp .env.example .env
@@ -82,6 +89,11 @@ STRIPE_SECRET_KEY=sk_test_...
 SMTP2GO_API_KEY=your_smtp2go_key
 GEMINI_API_KEY=your_google_ai_key
 
+# Google Cloud Storage (for Litestream)
+LITESTREAM_GCS_BUCKET=your-bucket-name
+LITESTREAM_GCS_PROJECT_ID=your-project-id
+GCP_CREDENTIALS_B64=base64-encoded-service-account-json
+
 # Security
 SECRET_KEY=your_random_secret_here
 ```
@@ -90,6 +102,10 @@ Required API Keys:
 1. [Stripe](https://dashboard.stripe.com/test/apikeys)
 2. [SMTP2GO](https://www.smtp2go.com/settings/api/)
 3. [Google AI Studio](https://makersuite.google.com/)
+4. [Google Cloud Storage](https://console.cloud.google.com/storage)
+   - Create a service account with Storage Object Admin permissions
+   - Download the JSON key file
+   - Base64 encode the key: `base64 -w0 your-key.json`
 
 ## Deployment
 
@@ -101,27 +117,33 @@ docker build -t feedback-app .
 docker run -d -p 8080:8080 \
   -e STRIPE_SECRET_KEY=$STRIPE_PROD_KEY \
   -e SMTP2GO_API_KEY=$SMTP_PROD_KEY \
+  -e LITESTREAM_GCS_BUCKET=$GCS_BUCKET \
+  -e LITESTREAM_GCS_PROJECT_ID=$GCS_PROJECT \
+  -e GCP_CREDENTIALS_B64=$GCS_CREDS \
   feedback-app
 ```
 
 Production environment features:
 - HTTPS via Let's Encrypt
-- PostgreSQL database
+- SQLite database with Litestream replication to Google Cloud Storage
 - Gunicorn + Nginx reverse proxy
-- Automated backups
+- Automated backups via Litestream
 - Monitoring via Prometheus/Grafana
 
 ## Development
 
 ```bash
-# Start development server
-make dev
+# Start development server with Litestream replication
+litestream replicate -config litestream.yml -exec "make dev"
 
 # Run tests
 make test
 
 # Generate database schema diagram
 python -m eralchemy2 -i sqlite:///data/feedback.db -o docs/erd.png
+
+# Restore database from backup if needed
+litestream restore -config litestream.yml data/feedback.db
 ```
 
 File Structure:
@@ -132,7 +154,8 @@ File Structure:
 ├── main.py             # Main application
 ├── models.py           # Database models
 ├── pages.py            # UI templates
-├── llm_functions.py   # AI processing
+├── llm_functions.py    # AI processing
+├── litestream.yml      # Litestream configuration
 └── config.py           # Configuration defaults
 ```
 
