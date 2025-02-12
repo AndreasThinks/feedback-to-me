@@ -26,3 +26,5 @@ MAGIC_LINK_EXPIRY_DAYS = int(os.getenv("MAGIC_LINK_EXPIRY_DAYS", "30"))
 FEEDBACK_QUALITIES = os.getenv("FEEDBACK_QUALITIES", "Communication,Leadership,Technical Skills,Teamwork,Problem Solving").split(",")
 
 BASE_URL =  os.getenv("BASE_URL", "feedback-to.me")
+GEMINI_API_KEY=os.getenv("GEMINI_API_KEY", "gemini_key")
+

@@ -14,10 +14,13 @@ import json
 from pydantic import BaseModel, Field
 from langchain.output_parsers import PydanticOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+
 
 # Configure logger for debugging
 from utils import logger
 
+from config import GEMINI_API_KEY
 
 def clean_markdown(text: str) -> str:
     """
@@ -66,7 +69,7 @@ def create_feedback_llm() -> ChatGoogleGenerativeAI:
     logger.debug("Creating LLM instance using Gemini flash-lite preview model.")
     llm_instance = ChatGoogleGenerativeAI(
         model="gemini-2.0-flash-lite-preview-02-05",
-        api_key=os.getenv("GEMINI_API_KEY"),
+        api_key=GEMINI_API_KEY,
         temperature=1,
         max_tokens=8192,
         top_p=0.95,
@@ -214,16 +217,15 @@ def generate_completed_feedback_report(feedback_input: str) -> str:
         A markdown-formatted feedback report string.
     """
     try:
+
+        from config import GEMINI_API_KEY
+        print(GEMINI_API_KEY)
+
+
+        client = genai.Client(api_key=GEMINI_API_KEY)
+
         logger.debug("Starting generation of complete feedback report.")
         # Instantiate LLM for report generation using a different Gemini model
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash-thinking-exp",
-            api_key=os.getenv("GEMINI_API_KEY"),
-            temperature=0.7,
-            max_tokens=8192,
-            top_p=0.8,
-            top_k=40
-        )
         
         prompt = f"""You are a professional feedback report writer. Your task is to analyze the feedback data below and create a comprehensive, well-structured feedback report in markdown format.
 
@@ -266,11 +268,13 @@ Please generate a comprehensive feedback report that is:
 You should return the markdown directly, with no additional formatting needed. JUST OUTPUT THE MARKDOWN."""
         
         logger.debug("Sending prompt to LLM for feedback report generation.")
-        messages = [("human", prompt)]
-        response = llm.invoke(messages)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-thinking-exp",
+            contents=prompt
+        )
         logger.debug("Received response from LLM for feedback report generation.")
         logger.debug("Feedback report generated successfully.")
-        markdown_output = clean_markdown(response.content)
+        markdown_output = clean_markdown(response.text)
         return  markdown_output
         
     except Exception as e:
