@@ -206,7 +206,7 @@ Feedback:
         logger.error(f"Error processing feedback: {str(e)}")
         return None
 
-def generate_completed_feedback_report(feedback_input: str) -> str:
+def generate_completed_feedback_report(feedback_input: str) -> tuple[str, str]:
     """
     Takes formatted feedback data and generates a comprehensive feedback report using Google Gemini via LangChain.
     
@@ -275,7 +275,7 @@ You should return the markdown directly, with no additional formatting needed. J
         logger.debug("Received response from LLM for feedback report generation.")
         logger.debug("Feedback report generated successfully.")
         markdown_output = clean_markdown(response.text)
-        return  markdown_output
+        return prompt, markdown_output
         
     except Exception as e:
         logger.error(f"Error generating feedback report: {str(e)}")

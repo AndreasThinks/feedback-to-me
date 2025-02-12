@@ -36,6 +36,7 @@ class FeedbackProcess:
     min_submissions_required: int
     qualities: List[str] # the list of qualities the feedback should cover
     feedback_count: int
+    report_submission_prompt: Optional[str] = None  
     feedback_report: Optional[str] = None  # filled_when_report_generated
 
 @patch

@@ -1052,9 +1052,12 @@ def create_feeback_report(process_id : str):
         return "Not enough feedback submissions to generate report", 400
 
     feedback_report_input = create_feedback_report_input(process_id)
-    feedback_report = generate_completed_feedback_report(feedback_report_input)
+    feedback_report_prompt, feedback_report = generate_completed_feedback_report(feedback_report_input)
     
-    feedback_process_tb.update({"feedback_report": feedback_report}, process_id)
+    feedback_process_tb.update({
+        "report_submission_prompt": feedback_report_prompt,
+        "feedback_report": feedback_report
+    }, process_id)
     
     # Redirect to refresh the page
     return RedirectResponse(f"/feedback-process/{process_id}", status_code=303)
