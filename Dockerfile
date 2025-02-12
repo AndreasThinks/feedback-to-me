@@ -31,7 +31,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Setup GCP credentials and data directory
 RUN mkdir -p /app/data
 ENV GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
-RUN echo "$GCP_CREDENTIALS_B64" | base64 -d > $GOOGLE_APPLICATION_CREDENTIALS
-
-# Run the app with Litestream
-CMD litestream replicate -config /app/litestream.yml -exec "uv run main.py"
+# Defer credentials decoding to runtime to ensure environment variable is available
+CMD echo "$GCP_CREDENTIALS_B64" | base64 -d > $GOOGLE_APPLICATION_CREDENTIALS && \
+    litestream replicate -config /app/litestream.yml -exec "uv run main.py"
