@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: feedback_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: feedback
+      POSTGRES_USER: feedback_user
+      POSTGRES_PASSWORD: feedback_pass
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feedback_user -d feedback"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: feedback_app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://feedback_user:feedback_pass@db:5432/feedback
+      DEV_MODE: "true"
+      LOG_LEVEL: "DEBUG"
+      BASE_URL: "http://localhost:8080"
+    ports:
+      - "8080:8080"
+    # Mount the local code for live reloading
+    command: ["uv", "run", "main.py"]
+
+volumes:
+  postgres_data:

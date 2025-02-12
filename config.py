@@ -28,3 +28,4 @@ FEEDBACK_QUALITIES = os.getenv("FEEDBACK_QUALITIES", "Communication,Leadership,T
 BASE_URL =  os.getenv("BASE_URL", "feedback-to.me")
 GEMINI_API_KEY=os.getenv("GEMINI_API_KEY", "gemini_key")
 
+DB_URL = os.getenv("DATABASE_URL", "data/feedback.db")

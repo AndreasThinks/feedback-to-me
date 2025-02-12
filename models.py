@@ -1,12 +1,24 @@
 from fasthtml.common import *
 from datetime import datetime, timedelta
 from fastcore.basics import patch
+from fastsql import Database, DBTable
+import sqlalchemy as sa
+from sqlalchemy import Table, Column, Integer, String, Boolean, DateTime, JSON, ForeignKey, MetaData
+from config import DB_URL
 
-
+metadata = MetaData()
 # -------------------------
 # Database and Schema Setup
 # -------------------------
-db = database("data/feedback.db")
+# Get database URL from environment variable, fallback to SQLite for development
+import os
+db_url = DB_URL
+if db_url.startswith("postgresql://"):
+    print('db ur is ')
+    print(db_url)
+    db = Database(db_url)
+else:
+    db = database(db_url)  # SQLiteFastSQL fallback
 # Users table: using email as unique identifier
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -24,7 +36,23 @@ class User:
     is_confirmed: bool = False
     credits: int = 3  # New users start with 3 free credits
 
-users = db.create(User, pk="email")  # Use email as primary key for simpler login
+# SQLAlchemy Table definitions
+users_table = Table(
+    'users',
+    metadata,
+    Column('id', String, primary_key=True),  # Using id as primary key
+    Column('first_name', String, nullable=False),
+    Column('email', String, nullable=False, unique=True),  # Unique constraint on email
+    Column('role', String),
+    Column('company', String),
+    Column('team', String),
+    Column('created_at', DateTime, nullable=False),
+    Column('pwd', String, nullable=False),
+    Column('is_confirmed', Boolean, default=False),
+    Column('credits', Integer, default=3)
+)
+
+users = DBTable(users_table, database=db, cls=User)
 
 # FeedbackProcess table: tracks the overall feedback collection process
 
@@ -52,7 +80,22 @@ def __ft__(self: FeedbackProcess):
     link = AX(f"{self.process_title} - created on {formatted_date}", href= f'/feedback-process/{self.id}', id=f'process-{self.id}')   
     return Li(link, id=f'process-{self.id}')
 
-feedback_process_tb = db.create(FeedbackProcess, pk="id")
+# FeedbackProcess table definition
+feedback_process_table = Table(
+    'feedback_process',
+    metadata,
+    Column('id', String, primary_key=True),
+    Column('process_title', String, nullable=False),
+    Column('user_id', String, ForeignKey('users.id'), nullable=False),
+    Column('created_at', DateTime, nullable=False),
+    Column('min_submissions_required', Integer, nullable=False),
+    Column('qualities', JSON, nullable=False),  # Store list as JSON
+    Column('feedback_count', Integer, nullable=False),
+    Column('report_submission_prompt', String),
+    Column('feedback_report', String)
+)
+
+feedback_process_tb = DBTable(feedback_process_table, database=db, cls=FeedbackProcess)
 
 # FeedbackRequest table: stores requests to individuals
 @dataclass
@@ -65,7 +108,20 @@ class FeedbackRequest:
     email_sent: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
-feedback_request_tb = db.create(FeedbackRequest, pk="token")
+# FeedbackRequest table definition
+feedback_request_table = Table(
+    'feedback_request',
+    metadata,
+    Column('token', String, primary_key=True),
+    Column('email', String, nullable=False),
+    Column('user_type', String, nullable=False),
+    Column('process_id', String, ForeignKey('feedback_process.id'), nullable=False),
+    Column('expiry', DateTime, nullable=False),
+    Column('email_sent', DateTime),
+    Column('completed_at', DateTime)
+)
+
+feedback_request_tb = DBTable(feedback_request_table, database=db, cls=FeedbackRequest)
 
 # FeedbackSubmission table: stores completed feedback submissions in response to the request
 class FeedbackSubmission:
@@ -76,7 +132,19 @@ class FeedbackSubmission:
     process_id: str    # UUID linking to FeedbackProcess table
     created_at: datetime
 
-feedback_submission_tb = db.create(FeedbackSubmission, pk="id")
+# FeedbackSubmission table definition
+feedback_submission_table = Table(
+    'feedback_submission',
+    metadata,
+    Column('id', String, primary_key=True),
+    Column('request_id', String, ForeignKey('feedback_request.token'), nullable=False),
+    Column('feedback_text', String, nullable=False),
+    Column('ratings', JSON, nullable=False),  # Store dict as JSON
+    Column('process_id', String, ForeignKey('feedback_process.id'), nullable=False),
+    Column('created_at', DateTime, nullable=False)
+)
+
+feedback_submission_tb = DBTable(feedback_submission_table, database=db, cls=FeedbackSubmission)
 
 # FeedbackTheme table: stores extracted themes from feedback
 @dataclass
@@ -87,7 +155,18 @@ class FeedbackTheme:
     sentiment: str  # 'positive', 'negative', or 'neutral'
     created_at: datetime
 
-feedback_themes_tb = db.create(FeedbackTheme, pk="id")
+# FeedbackTheme table definition
+feedback_theme_table = Table(
+    'feedback_theme',
+    metadata,
+    Column('id', String, primary_key=True),
+    Column('feedback_id', String, ForeignKey('feedback_submission.id'), nullable=False),
+    Column('theme', String, nullable=False),
+    Column('sentiment', String, nullable=False),
+    Column('created_at', DateTime, nullable=False)
+)
+
+feedback_themes_tb = DBTable(feedback_theme_table, database=db, cls=FeedbackTheme)
 
 @dataclass
 class ConfirmToken:
@@ -96,7 +175,17 @@ class ConfirmToken:
     expiry: datetime
     is_used: bool = False
 
-confirm_tokens_tb = db.create(ConfirmToken, pk="token")
+# ConfirmToken table definition
+confirm_token_table = Table(
+    'confirm_token',
+    metadata,
+    Column('token', String, primary_key=True),
+    Column('email', String, ForeignKey('users.email', ondelete='CASCADE'), nullable=False),
+    Column('expiry', DateTime, nullable=False),
+    Column('is_used', Boolean, default=False)
+)
+
+confirm_tokens_tb = DBTable(confirm_token_table, database=db, cls=ConfirmToken)
 
 # Other helper functions
 

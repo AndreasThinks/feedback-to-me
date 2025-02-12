@@ -31,7 +31,7 @@ A modern web application for collecting and analyzing 360° feedback, built with
 graph TD
     A[Client] --> B[Nginx]
     B --> C[FastHTML App]
-    C --> D[(SQLite Database)]
+    C --> D[(PostgreSQL Database)]
     C --> E[Stripe API]
     C --> F[SMTP2GO]
     C --> G[Google Gemini AI]
@@ -39,7 +39,7 @@ graph TD
 
 Key Components:
 - **Web Server**: FastHTML with Python backend
-- **Database**: SQLite (production-ready version uses PostgreSQL)
+- **Database**: PostgreSQL (with SQLite fallback for development)
 - **AI Processing**: Google Gemini via LangChain integration
 - **Payments**: Stripe Checkout integration
 - **Email**: SMTP2GO service
@@ -47,24 +47,40 @@ Key Components:
 ## Quick Start
 
 ### Prerequisites
-- Python 3.10+
-- SQLite3
-- Node.js (for optional frontend builds)
+- Docker and Docker Compose
+- Python 3.12+ (for local development without Docker)
+- PostgreSQL 15+ (automatically handled by Docker)
+
+### Quick Start with Docker
 
 ```bash
 # Clone repository
 git clone https://github.com/yourusername/feedback-to-me.git
 cd feedback-to-me
 
+# Copy environment file and configure
+cp .env.example .env
+
+# Start the application with Docker Compose
+docker compose up --build
+
+# Initialize the database (first time only)
+docker compose exec app python scripts/init_db.py
+```
+
+### Local Development without Docker
+
+```bash
 # Create virtual environment
 python -m venv venv
 source venv/bin/activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies using uv
+uv sync
 
 # Set up environment variables
 cp .env.example .env
+# Edit .env to configure your database connection
 ```
 
 ## Configuration
@@ -91,25 +107,32 @@ Required API Keys:
 2. [SMTP2GO](https://www.smtp2go.com/settings/api/)
 3. [Google AI Studio](https://makersuite.google.com/)
 
-## Deployment
+## Deployment to Railway
 
-Production deployment (currently running at https://feedback-to.me):
+1. Create a new project on Railway and connect your repository
+2. Add a PostgreSQL plugin to your project
+3. Deploy your application:
 
 ```bash
-# Using Docker
-docker build -t feedback-app .
-docker run -d -p 8080:8080 \
-  -e STRIPE_SECRET_KEY=$STRIPE_PROD_KEY \
-  -e SMTP2GO_API_KEY=$SMTP_PROD_KEY \
-  feedback-app
+# Login to Railway
+railway login
+
+# Link to your project
+railway link
+
+# Deploy the application
+railway up
 ```
 
+The PostgreSQL connection URL will be automatically injected as `DATABASE_URL`.
+
 Production environment features:
-- HTTPS via Let's Encrypt
-- PostgreSQL database
-- Gunicorn + Nginx reverse proxy
-- Automated backups
-- Monitoring via Prometheus/Grafana
+- HTTPS via Railway's SSL
+- PostgreSQL database with automated backups
+- Docker container deployment
+- Automated CI/CD pipeline
+- Environment variable management
+- Monitoring and logging via Railway dashboard
 
 ## Development
 
