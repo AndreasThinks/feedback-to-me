@@ -1,6 +1,6 @@
 FROM python:3.12-slim-bookworm
 # Install Litestream
-RUN apt-get update && apt-get install -y wget base64
+RUN apt-get update && apt-get install -y wget coreutils
 RUN wget https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.deb
 RUN dpkg -i litestream-v0.3.13-linux-amd64.deb
 RUN rm litestream-v0.3.13-linux-amd64.deb
