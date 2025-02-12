@@ -1,0 +1,7 @@
+dbs:
+  - path: /app/data/feedback.db
+    replicas:
+      - type: gcs
+        bucket: ${LITESTREAM_GCS_BUCKET}
+        path: feedback-db
+        project-id: ${LITESTREAM_GCS_PROJECT_ID}
