@@ -98,6 +98,7 @@ def validate_passwords_match(password: str, confirm_password: str) -> tuple[bool
 beforeware = Beforeware(auth_before, skip=[r'/',
                                            r'^/validate-.*',  # Match all validate-* endpoints
                                            r'/login',
+                                           r'/pricing',
                                            r'/privacy-policy',
                                         r'/get-started',
                                            r'/how-it-works',
