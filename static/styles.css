@@ -440,6 +440,13 @@ progress::-moz-progress-bar {
   color: #2b8a3e;
 }
 
+#feedback-count-msg:empty {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
 .status-line {
   margin-bottom: 0.5rem;
   display: flex;
