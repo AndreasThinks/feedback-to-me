@@ -91,17 +91,22 @@ navigation_bar_logged_out = Nav(
 )
 
 def navigation_bar_logged_in(user):
+    nav_items = [
+        Li(A("Dashboard", href="/dashboard")),
+        Li(A("How It Works", href="/how-it-works")),
+        Li(AX("FAQ", href="/faq")),
+        Li(Span(f"Credits: {user.credits}")),
+        Li(A("Buy Credits", href="/buy-credits"))
+    ]
+    
+    if user.is_admin:
+        nav_items.append(Li(A("Admin", href="/admin")))
+    
+    nav_items.append(Li(A("Logout", href="/logout")))
+    
     return Nav(
-        Ul(
-            Li(Strong(A("Feedback to Me", href="/")))),
-        Ul(
-            Li(A("Dashboard", href="/dashboard")),
-            Li(A("How It Works", href="/how-it-works")),
-            Li(AX("FAQ", href="/faq")),
-            Li(Span(f"Credits: {user.credits}")),
-            Li(A("Buy Credits", href="/buy-credits")),
-            Li(A("Logout", href="/logout"))
-        ),
+        Ul(Li(Strong(A("Feedback to Me", href="/")))),
+        Ul(*nav_items),
         cls='navbar'
     )
 

@@ -17,6 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login, confirm_tokens_tb
 from pages import how_it_works_page, generate_themed_page, faq_page, error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, privacy_policy_page
 
@@ -41,6 +42,31 @@ app, rt = fast_app(
     ),
     exception_handlers={HTTPException: lambda req, exc: Response(content="", status_code=exc.status_code, headers=exc.headers)}
 )
+
+# Create admin user if it doesn't exist
+admin_email = os.environ.get("ADMIN_USERNAME")
+admin_password = os.environ.get("ADMIN_PASSWORD")
+
+if admin_email and admin_password:
+    try:
+        admin_user = users[admin_email]
+        logger.info("Admin user already exists")
+    except Exception:
+        logger.info("Creating admin user")
+        admin_user = users.insert({
+            "id": secrets.token_hex(16),
+            "first_name": "Admin",
+            "email": admin_email,
+            "role": "Administrator",
+            "company": "Feedback to Me",
+            "team": "Admin",
+            "created_at": datetime.now(),
+            "pwd": bcrypt.hashpw(admin_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
+            "is_confirmed": True,
+            "is_admin": True,
+            "credits": 999999  # Large number of credits for admin
+        })
+        logger.info("Admin user created successfully")
 
 # --------------------
 # Helper Functions
@@ -1347,6 +1373,26 @@ def delete_process(process_id: str, sess):
     except Exception as e:
         logger.error(f"Error deleting feedback process: {str(e)}")
         return "Error deleting feedback process", 500
+
+# -----------------------
+# Routes: Admin
+# -----------------------
+@app.get("/admin")
+def get_admin(req):
+    auth = req.scope.get("auth")
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    
+    user = users("id=?", (auth,))[0]
+    if not user.is_admin:
+        return RedirectResponse("/dashboard", status_code=303)
+    
+    admin_page = Container(
+        H2("Admin Dashboard"),
+        P("Welcome to the admin dashboard. More features coming soon.")
+    )
+    
+    return generate_themed_page(admin_page, auth=auth, page_title="Admin Dashboard")
 
 @app.post("/feedback-process/{process_id}/send_email")
 def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):
