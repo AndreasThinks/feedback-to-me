@@ -284,7 +284,7 @@ register_form = Form(
             ),
             Div(
                 Input(name="email", type="email", placeholder="Email *", required=True,
-                      hx_post="/validate-email",
+                      hx_post="/validate-registration-email",
                       hx_trigger="change delay:300ms",
                       hx_target="#email-validation"),
                 Div(id="email-validation", role="alert")

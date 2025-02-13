@@ -490,9 +490,9 @@ def validate_password(pwd: str):
         ),
     id="password-verification-status")
 
-@app.post("/validate-email")
-def validate_email(email: str):
-    """Validate email format and availability"""
+@app.post("/validate-registration-email")
+def validate_registration_email(email: str):
+    """Validate email format and availability for registration"""
     is_valid, message = validate_email_format(email)
     if not is_valid:
         return Div(message, id="email-validation", role="alert", cls="error")
@@ -502,6 +502,14 @@ def validate_email(email: str):
         return Div("Email already in use", id="email-validation", role="alert", cls="error")
     except Exception:
         return Div("Email is available", id="email-validation", role="alert", cls="success")
+
+@app.post("/validate-email")
+def validate_email(email: str):
+    """Validate only email format"""
+    is_valid, message = validate_email_format(email)
+    if not is_valid:
+        return Div(message, id="email-validation", role="alert", cls="error")
+    return Div("Email format is valid", id="email-validation", role="alert", cls="success")
 
 @app.post("/validate-password-match")
 def validate_password_match(pwd: str, pwd_confirm: str):
