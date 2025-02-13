@@ -8,6 +8,7 @@ import secrets, os
 import bcrypt
 import logging
 from datetime import datetime
+import json
 
 # Configure logging based on environment variable
 log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -27,6 +28,7 @@ from config import MINIMUM_SUBMISSIONS_REQUIRED, MAGIC_LINK_EXPIRY_DAYS, FEEDBAC
 from utils import beforeware, validate_email_format, validate_password_strength, validate_passwords_match
 
 import requests
+import math
 import stripe
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
@@ -1124,8 +1126,15 @@ def get_report_status_page(process_id : str, req):
     return process_page_content
 
 def create_feedback_report_input(process_id):
+    logger.info(f"Creating feedback report input for process {process_id}")
     process = feedback_process_tb[process_id]
+    logger.debug(f"Process qualities: {process.qualities}")
+    
     submissions = feedback_submission_tb("process_id=?", (process_id,))
+    logger.info(f"Found {len(submissions)} submissions")
+    if not submissions:
+        logger.error("No submissions found for this process")
+        return "No submissions available for report generation"
     
     # Initialize statistics structure
     role_stats = {
@@ -1137,6 +1146,8 @@ def create_feedback_report_input(process_id):
     overall_stats = {}
     import json
     from collections import defaultdict
+    
+    logger.debug("Initialized statistics structures")
 
     # Helper function to calculate statistics
     def calc_stats(values):
@@ -1145,42 +1156,68 @@ def create_feedback_report_input(process_id):
         n = len(values)
         avg = sum(values) / n
         variance = sum((x - avg) ** 2 for x in values) / n if n > 1 else 0
+        std_dev = math.sqrt(variance)
         return {
             "average": round(avg, 2),
             "variance": round(variance, 2),
+            "std_dev": round(std_dev, 2),
             "count": n,
             "min": min(values),
-            "max": max(values)
+            "max": max(values),
+            "raw_values": values
         }
 
     # Collect ratings by role and quality
     role_ratings = defaultdict(lambda: defaultdict(list))
     for s in submissions:
+        logger.info(f"\nProcessing submission {s.id}")
         r = s.ratings
+        logger.debug(f"Raw ratings data: {r}")
+        
         if isinstance(r, str):
             try:
                 r = json.loads(r)
-            except Exception:
-                r = {}  
+                logger.info(f"Successfully parsed ratings JSON: {r}")
+            except Exception as e:
+                logger.error(f"Failed to parse ratings JSON for submission {s.id}: {e}")
+                logger.error(f"Raw ratings string: {r}")
+                r = {}
+                continue
 
-        request = feedback_request_tb[s.request_id]
+        if not r:
+            logger.warning(f"Empty ratings for submission {s.id}")
+            continue
 
-        role = request.user_type
-        role_stats[role]["count"] += 1
-        
-        for quality in process.qualities:
-            if quality in r:
-                role_ratings[role][quality].append(r[quality])
+        try:
+            request = feedback_request_tb[s.request_id]
+            role = request.user_type
+            role_stats[role]["count"] += 1
+            logger.info(f"Processing ratings for role {role}")
+
+            # OR if process.qualities is already a list/dict, just use it directly:
+            process_qualities = json.loads(process.qualities)  # Convert JSON string to Python list
+
+            for quality in process_qualities:
+                if quality in r:
+                    value = r[quality]
+                    logger.debug(f"Adding rating for {quality}: {value}")
+                    role_ratings[role][quality].append(value)
+                else:
+                    logger.warning(f"Missing rating for quality: {quality}")
+            
+        except Exception as e:
+            logger.error(f"Error processing request {s.request_id}: {e}")
+            continue
 
     # Calculate statistics for each role and quality
     for role in role_stats:
-        for quality in process.qualities:
+        for quality in process_qualities:
             values = role_ratings[role][quality]
             if values:
                 role_stats[role]["qualities"][quality] = calc_stats(values)
 
     # Calculate overall statistics for each quality
-    for quality in process.qualities:
+    for quality in process_qualities:
         all_values = []
         for role in role_ratings:
             all_values.extend(role_ratings[role][quality])
@@ -1195,9 +1232,9 @@ def create_feedback_report_input(process_id):
         "neutral": [t.theme for t in themes if t.sentiment == "neutral"]
     }
     
-    report_input = f"""Feedback Report Summary for Process {process_id}
+    report_input = f"""Feedback Report Summary
 
-Overall Quality Ratings:
+Overall Quality Statistics:
 {'-' * 40}"""
 
     for quality, stats in overall_stats.items():
@@ -1206,7 +1243,7 @@ Overall Quality Ratings:
 {quality}:
 - Average Rating: {stats['average']}
 - Rating Range: {stats['min']} - {stats['max']}
-- Rating Variance: {stats['variance']}
+- Standard Deviation: {stats['std_dev']}
 - Number of Ratings: {stats['count']}"""
 
     report_input += f"""
@@ -1323,12 +1360,12 @@ def get_feedback_form(request_token: str):
             *[(
                    Label(q, cls="range-label"), 
                    Div(
-                       Input(type="range", min=1, max=8, value=4, id=f"rating_{q.lower()}"),
+                       Input(type="range", min=1, max=8, value=4, name=f"rating_{q.lower()}", id=f"rating_{q.lower()}"),
                        cls="range-wrapper"
                    )
               ) for q in qualities],
               textbox_text,
-            Textarea(id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True),
+            Textarea(name="feedback_text", id="feedback_text", placeholder="Provide detailed feedback...", rows=5, required=True),
         Button("Submit Feedback", type="submit"),
         hx_post=f"/new-feedback-form/{onward_request_id}/submit", hx_target="body", hx_swap="outerHTML"
     )
@@ -1343,27 +1380,63 @@ def get_feedback_submitted():
 
 @app.post("/new-feedback-form/{request_token}/submit")
 def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
-    print(data)
+    logger.debug(f"Submitting feedback form with data: {data}")
     try:
         feedback_request = feedback_request_tb[request_token]
-        print('found feedback request')
+        logger.debug('Found feedback request')
+        
+        # Get process qualities
+        process = feedback_process_tb[feedback_request.process_id]
+        
+        # Parse qualities from process
+        qualities = process.qualities
+        logger.debug(f"Raw qualities from process: {qualities}")
+        
+        if isinstance(qualities, str):
+            try:
+                # Try to parse as JSON first
+                qualities = json.loads(qualities)
+                logger.debug(f"Parsed qualities from JSON: {qualities}")
+            except json.JSONDecodeError:
+                try:
+                    # Try to parse as Python literal
+                    import ast
+                    qualities = ast.literal_eval(qualities)
+                    logger.debug(f"Parsed qualities from literal_eval: {qualities}")
+                except (ValueError, SyntaxError):
+                    # If both fail, split by comma
+                    qualities = [q.strip() for q in qualities.split(",") if q.strip()]
+                    logger.debug(f"Split qualities by comma: {qualities}")
+        
+        if not isinstance(qualities, list):
+            logger.error(f"Failed to parse qualities into list. Current value: {qualities}")
+            qualities = []
+        
+        logger.info(f"Final qualities list: {qualities}")
+        logger.debug(f"Processing ratings for qualities: {qualities}")
+        logger.debug(f"Form data received: {data}")
         ratings = {}
-        for quality in FEEDBACK_QUALITIES:
+        for quality in qualities:
             rating_key = f"rating_{quality.lower()}"
             if rating_key in data:
                 try:
-                    ratings[quality] = int(data[rating_key])
+                    rating_value = int(data[rating_key])
+                    ratings[quality] = rating_value
+                    logger.debug(f"Added rating for {quality}: {rating_value}")
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid rating value for {quality}: {data[rating_key]}")
                     continue
+            else:
+                logger.warning(f"Missing rating for quality: {quality} (key: {rating_key})")
         submission_data = {
             "id": secrets.token_hex(8),
             "request_id": request_token,
             "feedback_text": feedback_text,
-            "ratings": ratings,
+            "ratings": json.dumps(ratings),  # Explicitly JSON encode ratings
             "process_id": feedback_request.process_id,
             "created_at": datetime.now()
         }
+        logger.debug(f"Submission data prepared: {submission_data}")
         submission = feedback_submission_tb.insert(submission_data)
         feedback_themes = convert_feedback_text_to_themes(feedback_text)
         if feedback_themes:
@@ -1504,6 +1577,8 @@ def delete_feedback_request(process_id: str, token: str, sess):
         request = feedback_request_tb[token]
         if request.process_id != process_id:
             return "Invalid request", 400
+        
+        feedback_submission_tb.delete("request_id=?", (token,))
         
         # Return credit to user
         user = users("id=?", (user_id,))[0]

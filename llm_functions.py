@@ -236,7 +236,7 @@ The report should:
    - Highlight significant variations between role perspectives (>1 point difference)
    - Consider both averages and rating ranges
    - Note when sample sizes are small (< 3 responses)
-   - Explain what high variance might indicate (e.g., inconsistent performance or different contexts)
+   - Explain what high variance or standard deviation might indicate
 3. Discuss the identified themes by grouping related feedback together.
 4. Provide actionable recommendations based on both ratings and themes.
 5. Use a professional, constructive tone throughout.
@@ -244,11 +244,12 @@ The report should:
 7. Do not output anything other than the markdown text.
 
 Special considerations:
+- Look for patterns in the raw rating values that might indicate specific contexts or situations
 - If a role has few responses, acknowledge the limited sample size
 - When there are significant differences between role perspectives, explore potential reasons
-- For qualities with high variance (>1.5), discuss possible contextual factors
+- For qualities with high standard deviation (>1.0), discuss possible contextual factors
 - Look for patterns where certain roles consistently rate differently
-- Consider how the min/max ranges might indicate specific situations or contexts
+- Consider how outliers in the raw values might represent unique perspectives or situations
 
 Here is the feedback data to analyze:
 
