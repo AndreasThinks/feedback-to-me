@@ -774,7 +774,7 @@ def count_submissions(peers_emails: str = "", supervisors_emails: str = "", repo
             Div(
                 Span("⚠️", cls="status-icon"),
                 f"You currently have {valid_count} valid submission(s).",
-                P(f"Need {remaining} more to reach the minimum of {MINIMUM_SUBMISSIONS_REQUIRED}.", cls="status-line warning"),
+                Div(f"Need {remaining} more to reach the minimum of {MINIMUM_SUBMISSIONS_REQUIRED}."),
                 cls="status-line warning"
             )
         )

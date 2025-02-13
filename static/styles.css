@@ -454,12 +454,6 @@ progress::-moz-progress-bar {
   gap: 0.5rem;
 }
 
-.status-line p {
-  margin: 0;
-  margin-top: 0.25rem;
-  color: #868e96;
-}
-
 .status-icon {
   flex-shrink: 0;
 }
