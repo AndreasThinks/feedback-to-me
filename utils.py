@@ -113,4 +113,7 @@ beforeware = Beforeware(auth_before, skip=[r'/',
                                             r'/register-new-user',
                                             r'/new-feedback-form/.*',
                                             r'/feedback-submitted',
+                                            r'/forgot-password',
+                                            r'/send-reset-email',
+                                            r'/reset-password/.*',
                                                   r'/static/.*'])

@@ -144,6 +144,57 @@ def send_feedback_email(recipient: str,  link: str, recipient_first_name: str = 
         logger.error(f"Exception during sending email for {recipient}: {str(e)}")
         return False
 
+def send_password_reset_email(recipient: str, token: str, recipient_first_name: str = "") -> bool:
+    """
+    Sends an email with a password reset link containing the given token.
+    """
+    try:
+        with open("password_reset_email_template.txt", "r") as f:
+            template = f.read()
+        link = generate_external_link(("reset-password") + f"/{token}")
+        filled_template = (
+            template
+            .replace("{link}", link)
+            .replace("{recipient_first_name}", recipient_first_name)
+        )
+
+        endpoint = os.environ.get("SMTP2GO_EMAIL_ENDPOINT", "https://api.smtp2go.com/v3")
+        api_key = os.environ.get("SMTP2GO_API_KEY")
+        if not api_key:
+            logger.error("SMTP2GO_API_KEY is missing.")
+            return False
+
+        payload = {
+            "sender": "noreply@feedback-to.me",
+            "to": [recipient],
+            "subject": "Password Reset Request",
+            "text_body": filled_template
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Smtp2go-Api-Key": api_key
+        }
+
+        logger.info(f"Sending password reset email to {recipient}")
+        response = requests.post(endpoint.rstrip("/") + "/email/send", json=payload, headers=headers)
+
+        if response.status_code == 200:
+            result_json = response.json()
+            succeeded = result_json.get("data", {}).get("succeeded", 0)
+            if succeeded == 1:
+                logger.info("Password reset email sent successfully.")
+                return True
+            else:
+                logger.error(f"SMTP2GO error sending password reset email: {result_json}")
+                return False
+        else:
+            logger.error(f"Error sending password reset email: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Exception while sending password reset email to {recipient}: {str(e)}")
+        return False
+
 def send_confirmation_email(recipient: str, token: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
     """
     Sends an email with a confirmation link containing the given token.
@@ -274,6 +325,141 @@ def get_logout(sess):
         del sess["auth"]
         logger.info(f"User logged out: {auth_id}")
     return RedirectResponse("/", status_code=303)
+
+@app.get("/forgot-password")
+def get_forgot_password():
+    """Display the forgot password form"""
+    form = Form(
+        H2("Reset Password"),
+        P("Enter your email address and we'll send you a link to reset your password."),
+        Input(name="email", type="email", placeholder="Enter your email", required=True),
+        Button("Send Reset Link", type="submit"),
+        action="/send-reset-email",
+        method="post"
+    )
+    return generate_themed_page(form, page_title="Reset Password")
+
+@app.post("/send-reset-email")
+def post_send_reset_email(email: str):
+    """Handle forgot password form submission"""
+    logger.debug(f"Password reset requested for email: {email}")
+    
+    # Validate email format
+    is_valid_email, email_msg = validate_email_format(email)
+    if not is_valid_email:
+        return Titled("Invalid Email", P(email_msg))
+    
+    try:
+        # Check if user exists
+        user = users[email]
+        
+        # Generate and store reset token
+        token = secrets.token_urlsafe()
+        expiry = datetime.now() + timedelta(hours=1)  # Token expires in 1 hour
+        password_reset_tokens_tb.insert({
+            "token": token,
+            "email": email,
+            "expiry": expiry,
+            "is_used": False
+        })
+        
+        # Send reset email
+        if send_password_reset_email(email, token, user.first_name):
+            return Titled(
+                "Check Your Email",
+                P("We've sent a password reset link to your email. The link will expire in 1 hour.")
+            )
+        else:
+            return Titled("Error", P("Failed to send reset email. Please try again later."))
+            
+    except Exception as e:
+        # Don't reveal if email exists or not for security
+        logger.info(f"Password reset attempted for non-existent email: {email}")
+        return Titled(
+            "Check Your Email",
+            P("If an account exists for this email, we'll send a password reset link.")
+        )
+
+@app.get("/reset-password/{token}")
+def get_reset_password(token: str):
+    """Display the password reset form"""
+    try:
+        # Verify token exists and is valid
+        reset_token = password_reset_tokens_tb[token]
+        if reset_token.is_used:
+            return Titled("Invalid Link", P("This password reset link has already been used."))
+        
+        expiry_datetime = reset_token.expiry if isinstance(reset_token.expiry, datetime) else datetime.fromisoformat(reset_token.expiry)
+        if expiry_datetime < datetime.now():
+            return Titled("Link Expired", P("This password reset link has expired. Please request a new one."))
+        
+        # Show password reset form
+        form = Form(
+            H2("Reset Your Password"),
+            Input(name="pwd", type="password", placeholder="New password", required=True,
+                  hx_post="/validate-password",
+                  hx_trigger="keyup changed delay:300ms",
+                  hx_target="#pwd-validation"),
+            Div(id="pwd-validation"),
+            Input(name="pwd_confirm", type="password", placeholder="Confirm new password", required=True,
+                  hx_post="/validate-password-match",
+                  hx_trigger="keyup changed delay:300ms",
+                  hx_include="[name='pwd']",
+                  hx_target="#pwd-match-validation"),
+            Div(id="pwd-match-validation"),
+            Button("Reset Password", type="submit"),
+            action=f"/reset-password/{token}",
+            method="post"
+        )
+        return generate_themed_page(form, page_title="Reset Password")
+        
+    except Exception:
+        return Titled("Invalid Link", P("This password reset link is invalid or has expired."))
+
+@app.post("/reset-password/{token}")
+def post_reset_password(token: str, pwd: str, pwd_confirm: str):
+    """Process password reset"""
+    try:
+        # Verify token exists and is valid
+        reset_token = password_reset_tokens_tb[token]
+        if reset_token.is_used:
+            return Titled("Invalid Link", P("This password reset link has already been used."))
+        
+        expiry_datetime = reset_token.expiry if isinstance(reset_token.expiry, datetime) else datetime.fromisoformat(reset_token.expiry)
+        if expiry_datetime < datetime.now():
+            return Titled("Link Expired", P("This password reset link has expired. Please request a new one."))
+        
+        # Validate password strength
+        score, issues = validate_password_strength(pwd)
+        if score < 70:
+            return Titled("Password Too Weak", 
+                         P("Please choose a stronger password:"),
+                         Ul(*(Li(issue) for issue in issues)))
+        
+        # Validate passwords match
+        match, match_msg = validate_passwords_match(pwd, pwd_confirm)
+        if not match:
+            return Titled("Passwords Don't Match", P(match_msg))
+        
+        # Update user's password
+        user = users[reset_token.email]
+        user.pwd = bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        users.update(user)
+        
+        # Mark token as used
+        reset_token.is_used = True
+        password_reset_tokens_tb.update(reset_token, reset_token.token)
+        
+        logger.info(f"Password reset successful for user: {reset_token.email}")
+        return Titled(
+            "Password Reset Complete",
+            P("Your password has been reset successfully. You can now log in with your new password."),
+            A("Go to Login", href="/login-form", cls="button")
+        )
+        
+    except Exception as e:
+        logger.error(f"Error resetting password: {str(e)}")
+        return Titled("Error", P("An error occurred while resetting your password."))
 
 @app.get("/register")
 def get(req):

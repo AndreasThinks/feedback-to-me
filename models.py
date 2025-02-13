@@ -99,6 +99,15 @@ class ConfirmToken:
 
 confirm_tokens_tb = db.create(ConfirmToken, pk="token")
 
+@dataclass
+class PasswordResetToken:
+    token: str
+    email: str
+    expiry: datetime
+    is_used: bool = False
+
+password_reset_tokens_tb = db.create(PasswordResetToken, pk="token")
+
 # Other helper functions
 
 @dataclass

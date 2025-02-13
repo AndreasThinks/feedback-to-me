@@ -268,8 +268,9 @@ login_or_register_page = Container(
 login_form = Form(
             Input(name="email", type="email", placeholder="Email", required=True),
             Input(name="pwd", type="password", placeholder="Password", required=True),
-        Button("Login", type="submit", cls="primary"),
-        hx_post="/login", hx_target="#login-intro-text", id='login-form'
+            Button("Login", type="submit", cls="primary"),
+            P(A("Forgot Password?", href="/forgot-password")),
+            hx_post="/login", hx_target="#login-intro-text", id='login-form'
     )
 
 error_message = Div(
