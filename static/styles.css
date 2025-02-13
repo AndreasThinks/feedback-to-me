@@ -496,12 +496,14 @@ button[aria-invalid="true"]:hover {
 /* Collapsible section styling */
 details[open] .collapsible-toggle {
   background-color: var(--pico-primary-hover);
+  color: #fff !important;
 }
 
 details > summary {
   list-style: none;
   cursor: pointer;
   transition: all 0.2s ease;
+  color: #fff !important;
 }
 
 details > summary::-webkit-details-marker {
@@ -593,7 +595,7 @@ details > summary::-webkit-details-marker {
   width: fit-content;
   padding: 0.75rem 1.5rem;
   background-color: #228be6;
-  color: #fff;
+  color: #fff !important;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -603,6 +605,7 @@ details > summary::-webkit-details-marker {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  text-decoration: none;
 }
 
 .collapsible-toggle:hover {
