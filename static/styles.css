@@ -1,3 +1,11 @@
+/* Nord Frost Color Palette */
+:root {
+  --nord7: #8fbcbb;  /* Calm, highly contrasted color for UI elements */
+  --nord8: #88c0d0;  /* Primary accent color */
+  --nord9: #81a1c1;  /* Secondary UI elements */
+  --nord10: #5e81ac; /* Tertiary UI elements */
+}
+
 /* Alpha Testing Styles */
 .alpha-banner {
   background: #f1f3f5;
@@ -105,15 +113,15 @@ progress::-moz-progress-bar {
 .registration-form input[type="text"]:focus,
 .registration-form input[type="email"]:focus,
 .registration-form input[type="password"]:focus {
-  border-color: #228be6;
-  box-shadow: 0 0 0 3px rgba(34, 139, 230, 0.1);
+  border-color: var(--nord8);
+  box-shadow: 0 0 0 3px rgba(136, 192, 208, 0.1);
   outline: none;
 }
 
 .registration-form button {
   padding: 0.75rem 1.25rem;
-  background-color: #228be6;
-  color: #fff;
+  background-color: var(--nord8);
+  color: #ffffff;
   border-radius: 6px;
   border: none;
   cursor: pointer;
@@ -122,7 +130,7 @@ progress::-moz-progress-bar {
 }
 
 .registration-form button:hover {
-  background-color: #1971c2;
+  background-color: var(--nord9);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
@@ -140,7 +148,7 @@ progress::-moz-progress-bar {
 .landing-page h2 {
    font-size: 2.5rem;
    margin-bottom: 1rem;
-   color: #1864ab;
+   color: var(--nord10);
 }
 
 .landing-page p {
@@ -163,10 +171,10 @@ progress::-moz-progress-bar {
 
 .landing-page .btn-primary {
    padding: 1rem 2rem;
-   background-color: #228be6;
+   background-color: var(--nord8);
    border: none;
    border-radius: 8px;
-   color: #fff;
+   color: #ffffff;
    font-size: 1.2rem;
    cursor: pointer;
    transition: all 0.3s ease;
@@ -174,7 +182,7 @@ progress::-moz-progress-bar {
 }
 
 .landing-page .btn-primary:hover {
-   background-color: #1971c2;
+   background-color: var(--nord9);
    transform: translateY(-2px);
    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
@@ -279,13 +287,13 @@ progress::-moz-progress-bar {
 }
 
 .request-status-pending {
-  background-color: #ffd43b;
-  color: #664d03;
+  background-color: var(--nord7);
+  color: #2e3440;
 }
 
 .request-status-completed {
-  background-color: #40c057;
-  color: #fff;
+  background-color: var(--nord8);
+  color: #ffffff;
 }
 
 .form-links-row {
@@ -300,8 +308,8 @@ progress::-moz-progress-bar {
   justify-content: center;
   padding: 0.5rem 1rem;
   border-radius: 6px;
-  background-color: #228be6;
-  color: #fff;
+  background-color: var(--nord8);
+  color: #ffffff;
   font-size: 0.9rem;
   font-weight: bold;
   border: none;
@@ -310,7 +318,7 @@ progress::-moz-progress-bar {
 }
 
 .request-status-button:hover {
-  background-color: #1971c2;
+  background-color: var(--nord9);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -323,7 +331,7 @@ progress::-moz-progress-bar {
   height: 24px;
   border-radius: 50%;
   background-color: #fa5252;
-  color: #fff;
+  color: #ffffff;
   font-size: 1rem;
   border: none;
   cursor: pointer;
@@ -340,7 +348,7 @@ progress::-moz-progress-bar {
 
 .delete-process-btn {
   background-color: #fa5252;
-  color: #fff;
+  color: #ffffff;
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 6px;
@@ -355,8 +363,6 @@ progress::-moz-progress-bar {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-
-
 .faq-question {
   padding: 1.25rem 1.5rem;
   margin: 1rem 0;
@@ -365,7 +371,7 @@ progress::-moz-progress-bar {
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
-  color: #1864ab;
+  color: var(--nord10);
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
@@ -387,7 +393,7 @@ progress::-moz-progress-bar {
 }
 
 .faq-question:hover::after {
-  color: #1864ab;
+  color: var(--nord10);
 }
 
 .faq-question[aria-expanded="true"]::after {
@@ -436,8 +442,8 @@ progress::-moz-progress-bar {
 }
 
 #feedback-count-msg.sufficient {
-  border: 1px solid #40c057;
-  color: #2b8a3e;
+  border: 1px solid var(--nord8);
+  color: var(--nord10);
 }
 
 #feedback-count-msg:empty {
@@ -495,15 +501,15 @@ button[aria-invalid="true"]:hover {
 
 /* Collapsible section styling */
 details[open] .collapsible-toggle {
-  background-color: var(--pico-primary-hover);
-  color: #fff !important;
+  background-color: var(--nord9);
+  color: #ffffff !important;
 }
 
 details > summary {
   list-style: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #fff !important;
+  color: #ffffff !important;
 }
 
 details > summary::-webkit-details-marker {
@@ -544,8 +550,8 @@ details > summary::-webkit-details-marker {
 
 #new-request-section input[type="email"]:focus,
 #new-request-section select:focus {
-  border-color: #228be6;
-  box-shadow: 0 0 0 3px rgba(34, 139, 230, 0.1);
+  border-color: var(--nord8);
+  box-shadow: 0 0 0 3px rgba(136, 192, 208, 0.1);
   outline: none;
   background-color: #f8f9fa;
 }
@@ -561,14 +567,14 @@ details > summary::-webkit-details-marker {
 }
 
 #new-request-section select:hover {
-  border-color: #228be6;
+  border-color: var(--nord8);
 }
 
 #new-request-section button[type="submit"] {
   width: 100%;
   padding: 0.875rem;
-  background-color: #228be6;
-  color: #fff;
+  background-color: var(--nord8);
+  color: #ffffff;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -578,7 +584,7 @@ details > summary::-webkit-details-marker {
 }
 
 #new-request-section button[type="submit"]:hover {
-  background-color: #1971c2;
+  background-color: var(--nord9);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
@@ -594,8 +600,8 @@ details > summary::-webkit-details-marker {
   margin-top: 1.5rem;
   width: fit-content;
   padding: 0.75rem 1.5rem;
-  background-color: #228be6;
-  color: #fff !important;
+  background-color: var(--nord8);
+  color: #ffffff !important;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -609,7 +615,7 @@ details > summary::-webkit-details-marker {
 }
 
 .collapsible-toggle:hover {
-  background-color: #1971c2;
+  background-color: var(--nord9);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
