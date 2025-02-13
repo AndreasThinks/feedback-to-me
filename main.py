@@ -1418,7 +1418,37 @@ def download_db(req):
     if not user.is_admin:
         return RedirectResponse("/dashboard", status_code=303)
     
-    return FileResponse("data/feedback.db", filename="feedback-backup.db", media_type="application/x-sqlite3")
+    try:
+        import sqlite3
+        import os
+        from datetime import datetime
+        
+        # Create a backup file with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = f"data/feedback_backup_{timestamp}.db"
+        
+        # Create a proper SQLite backup
+        source = sqlite3.connect("data/feedback.db")
+        dest = sqlite3.connect(backup_path)
+        source.backup(dest)
+        source.close()
+        dest.close()
+        
+        # Serve the backup file
+        response = FileResponse(backup_path, filename="feedback-backup.db", media_type="application/x-sqlite3")
+        
+        # Delete the backup file after sending
+        def cleanup(response):
+            if os.path.exists(backup_path):
+                os.remove(backup_path)
+            return response
+            
+        response.background = cleanup
+        return response
+        
+    except Exception as e:
+        logger.error(f"Database backup failed: {str(e)}")
+        return Titled("Error", P("Failed to create database backup."))
 
 @app.post("/admin/upload-db")
 async def upload_db(req):
@@ -1431,40 +1461,82 @@ async def upload_db(req):
         return RedirectResponse("/dashboard", status_code=303)
     
     try:
+        import sqlite3
+        import os
+        from datetime import datetime
+        
         form = await req.form()
         file = form["dbfile"]
         if not file.filename.endswith('.db'):
             return Titled("Error", P("Invalid file type. Please upload a .db file."))
         
-        # Save uploaded file with a temporary name
-        import shutil, os
-        from pathlib import Path
-        
-        # Create backup of current database
-        backup_path = "data/feedback.db.backup"
-        shutil.copy2("data/feedback.db", backup_path)
+        # Create a temporary file for the uploaded content
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        temp_path = f"data/upload_temp_{timestamp}.db"
         
         try:
-            # Save the uploaded file
+            # Save uploaded content to temporary file
             contents = await file.read()
-            with open("data/feedback.db", "wb") as f:
+            with open(temp_path, "wb") as f:
                 f.write(contents)
             
-            # Remove the backup if everything succeeded
-            os.remove(backup_path)
+            # Verify it's a valid SQLite database
+            try:
+                temp_conn = sqlite3.connect(temp_path)
+                temp_conn.cursor().execute("SELECT name FROM sqlite_master WHERE type='table'")
+                temp_conn.close()
+            except sqlite3.Error:
+                os.remove(temp_path)
+                return Titled("Error", P("Invalid SQLite database file."))
             
-            return RedirectResponse("/admin?success=true", status_code=303)
+            # Create backup of current database using SQLite backup API
+            backup_path = f"data/feedback_backup_{timestamp}.db"
+            source = sqlite3.connect("data/feedback.db")
+            backup = sqlite3.connect(backup_path)
+            source.backup(backup)
+            source.close()
+            backup.close()
+            
+            try:
+                # Replace current database with uploaded one using SQLite backup API
+                dest = sqlite3.connect("data/feedback.db")
+                source = sqlite3.connect(temp_path)
+                source.backup(dest)
+                source.close()
+                dest.close()
+                
+                # Clean up temporary files
+                os.remove(temp_path)
+                os.remove(backup_path)
+                
+                return RedirectResponse("/admin?success=true", status_code=303)
+                
+            except Exception as e:
+                # Restore from backup if something went wrong
+                if os.path.exists(backup_path):
+                    dest = sqlite3.connect("data/feedback.db")
+                    backup = sqlite3.connect(backup_path)
+                    backup.backup(dest)
+                    backup.close()
+                    dest.close()
+                    os.remove(backup_path)
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                logger.error(f"Database upload failed: {str(e)}")
+                return Titled("Error", P("Failed to upload database. The previous database has been restored."))
+                
         except Exception as e:
-            # Restore from backup if something went wrong
+            # Clean up temporary files
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
             if os.path.exists(backup_path):
-                shutil.copy2(backup_path, "data/feedback.db")
                 os.remove(backup_path)
             logger.error(f"Database upload failed: {str(e)}")
-            return Titled("Error", P("Failed to upload database. The previous database has been restored."))
+            return Titled("Error", P("Failed to process uploaded file."))
             
     except Exception as e:
         logger.error(f"Database upload failed: {str(e)}")
-        return Titled("Error", P("Failed to process uploaded file."))
+        return Titled("Error", P("Failed to process upload request."))
 
 @app.post("/feedback-process/{process_id}/send_email")
 def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):
