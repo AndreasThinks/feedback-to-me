@@ -94,7 +94,7 @@ def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
     })
     return uri("new-feedback-form", token=token)
 
-def send_feedback_email(recipient: str,  link: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
+def send_feedback_email(recipient: str,  link: str, recipient_first_name: str = "", sender_first_name: str = "") -> bool:
     try:
         link = generate_external_link(link)
         with open("feedback_email_template.txt", "r") as f:
@@ -103,7 +103,7 @@ def send_feedback_email(recipient: str,  link: str, recipient_first_name: str = 
             template
             .replace("{link}", link)
             .replace("{recipient_first_name}", recipient_first_name)
-            .replace("{recipient_company}", recipient_company)
+            .replace("{sender_first_name}", sender_first_name)
         )
 
         endpoint = os.environ.get("SMTP2GO_EMAIL_ENDPOINT", "https://api.smtp2go.com/v3")
@@ -1719,11 +1719,13 @@ async def upload_db(req):
         return Titled("Error", P("Failed to process upload request."))
 
 @app.post("/feedback-process/{process_id}/send_email")
-def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):
+def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = ""):
     try:
         req = feedback_request_tb[token]
+        process = feedback_process_tb[process_id]
+        sender = users("id=?", (process.user_id,))[0]
         link = uri("new-feedback-form", process_id=req.token)
-        success = send_feedback_email(req.email, link, recipient_first_name, recipient_company)
+        success = send_feedback_email(req.email, link, recipient_first_name, sender.first_name)
         if success:
             feedback_request_tb.update({"email_sent": datetime.now()}, token=token)
             return P("Email sent successfully!")
