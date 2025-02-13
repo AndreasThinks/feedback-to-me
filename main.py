@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-from models import feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login, confirm_tokens_tb
+from models import password_reset_tokens_tb, feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login, confirm_tokens_tb
 from pages import how_it_works_page, generate_themed_page, faq_page, error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, privacy_policy_page
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
@@ -349,36 +349,30 @@ def post_send_reset_email(email: str):
     if not is_valid_email:
         return Titled("Invalid Email", P(email_msg))
     
-    try:
-        # Check if user exists
-        user = users[email]
-        
-        # Generate and store reset token
-        token = secrets.token_urlsafe()
-        expiry = datetime.now() + timedelta(hours=1)  # Token expires in 1 hour
-        password_reset_tokens_tb.insert({
-            "token": token,
-            "email": email,
-            "expiry": expiry,
-            "is_used": False
-        })
-        
-        # Send reset email
-        if send_password_reset_email(email, token, user.first_name):
-            return Titled(
-                "Check Your Email",
-                P("We've sent a password reset link to your email. The link will expire in 1 hour.")
-            )
-        else:
-            return Titled("Error", P("Failed to send reset email. Please try again later."))
-            
-    except Exception as e:
-        # Don't reveal if email exists or not for security
-        logger.info(f"Password reset attempted for non-existent email: {email}")
+
+    # Check if user exists
+    user = users[email]
+    
+    # Generate and store reset token
+    token = secrets.token_urlsafe()
+    expiry = datetime.now() + timedelta(hours=1)  # Token expires in 1 hour
+    password_reset_tokens_tb.insert({
+        "token": token,
+        "email": email,
+        "expiry": expiry,
+        "is_used": False
+    })
+    
+    # Send reset email
+    if send_password_reset_email(email, token, user.first_name):
         return Titled(
             "Check Your Email",
-            P("If an account exists for this email, we'll send a password reset link.")
+            P("We've sent a password reset link to your email. The link will expire in 1 hour.")
         )
+    else:
+        return Titled("Error", P("Failed to send reset email. Please try again later."))
+        
+
 
 @app.get("/reset-password/{token}")
 def get_reset_password(token: str):
