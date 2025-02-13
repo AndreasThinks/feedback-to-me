@@ -1,8 +1,8 @@
 /* Alpha Testing Styles */
 .alpha-banner {
-  background: #fff3cd;
-  color: #856404;
-  border-bottom: 2px solid #ffeeba;
+  background: #f1f3f5;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
   padding: 0.75rem;
   text-align: center;
   font-weight: 600;
@@ -10,8 +10,8 @@
 }
 
 .alpha-badge {
-  background: #ffd54f;
-  color: #856404;
+  background: #e9ecef;
+  color: #495057;
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
   font-size: 0.8em;
@@ -20,12 +20,13 @@
 }
 
 .alpha-warning {
-  background: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeeba;
-  border-radius: 4px;
+  background: #f1f3f5;
+  color: #495057;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
   padding: 1rem;
   margin: 1rem 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 /* Validation styles */
@@ -79,9 +80,12 @@ progress::-moz-progress-bar {
 
 /* Basic styling for forms and containers */
 .registration-form {
-  padding: 1.5rem;
-  border-radius: 8px;
+  padding: 2rem;
+  background: #ffffff;
+  border-radius: 12px;
   margin: 1rem 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #dee2e6;
 }
 
 .registration-form input[type="text"],
@@ -89,40 +93,60 @@ progress::-moz-progress-bar {
 .registration-form input[type="password"] {
   display: block;
   margin-bottom: 1rem;
-  padding: 0.5rem;
+  padding: 0.75rem;
   width: 100%;
   box-sizing: border-box;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  background-color: #ffffff;
+}
+
+.registration-form input[type="text"]:focus,
+.registration-form input[type="email"]:focus,
+.registration-form input[type="password"]:focus {
+  border-color: #228be6;
+  box-shadow: 0 0 0 3px rgba(34, 139, 230, 0.1);
+  outline: none;
 }
 
 .registration-form button {
   padding: 0.75rem 1.25rem;
-  background-color: #2196F3;
+  background-color: #228be6;
   color: #fff;
-  border-radius: 4px;
+  border-radius: 6px;
   border: none;
   cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
 .registration-form button:hover {
-  background-color: #1976D2;
+  background-color: #1971c2;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Exciting landing page styles */
+/* Landing page styles */
 .landing-page {
-   background: linear-gradient(135deg, #4a90e2, #9013fe);
-   color: #fff;
+   background: linear-gradient(135deg, #f1f3f5, #e9ecef);
+   color: #212529;
    padding: 3rem 1rem;
    text-align: center;
+   border-radius: 12px;
+   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 }
 
 .landing-page h2 {
    font-size: 2.5rem;
    margin-bottom: 1rem;
+   color: #1864ab;
 }
 
 .landing-page p {
    font-size: 1.2rem;
    margin: 1rem 0;
+   color: #495057;
 }
 
 .landing-page ul {
@@ -130,6 +154,7 @@ progress::-moz-progress-bar {
    padding: 0;
    margin: 2rem 0;
    font-size: 1.1rem;
+   color: #495057;
 }
 
 .landing-page ul li {
@@ -138,17 +163,20 @@ progress::-moz-progress-bar {
 
 .landing-page .btn-primary {
    padding: 1rem 2rem;
-   background-color: #ff4081;
+   background-color: #228be6;
    border: none;
-   border-radius: 5px;
+   border-radius: 8px;
    color: #fff;
    font-size: 1.2rem;
    cursor: pointer;
-   transition: background-color 0.3s ease;
+   transition: all 0.3s ease;
+   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .landing-page .btn-primary:hover {
-   background-color: #e73370;
+   background-color: #1971c2;
+   transform: translateY(-2px);
+   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .footer {
@@ -157,13 +185,16 @@ progress::-moz-progress-bar {
    align-items: center;
    justify-content: center;
    font-size: x-small;
+   color: #868e96;
 }
 
 .report-section {
-  padding: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  padding: 1.5rem;
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
   margin: 1rem 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .qualities-checkboxes {
@@ -174,18 +205,15 @@ progress::-moz-progress-bar {
   position: relative;
   margin-bottom: 2rem;
   display: block;
+  padding-top: 1.5em;
 }
 
 .range-wrapper input[type="range"] {
   width: 100%;
-}
-
-/* Add "Poor" and "Excellent" labels above each range */
-.range-wrapper {
-  position: relative;
-  margin-bottom: 2rem;
-  display: block;
-  padding-top: 1.5em;
+  height: 6px;
+  background: #e9ecef;
+  border-radius: 3px;
+  outline: none;
 }
 
 .range-wrapper::before {
@@ -194,7 +222,7 @@ progress::-moz-progress-bar {
   top: 0;
   left: 0;
   font-size: 0.9em;
-  color: #444;
+  color: #495057;
 }
 
 .range-wrapper::after {
@@ -203,7 +231,7 @@ progress::-moz-progress-bar {
   top: 0;
   right: 0;
   font-size: 0.9em;
-  color: #444;
+  color: #495057;
 }
 
 @media (max-width: 600px) {
@@ -219,11 +247,12 @@ progress::-moz-progress-bar {
 .request-container {
   display: flex;
   flex-direction: column;
-  background-color: #1e1e2e;
-  padding: 1rem;
-  border-radius: 8px;
+  background-color: #ffffff;
+  padding: 1.5rem;
+  border-radius: 12px;
   margin-bottom: 1rem;
-  box-shadow: 0 2px 5px rgba(255, 255, 255, 0.1);
+  border: 1px solid #dee2e6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .request-status-header {
@@ -234,8 +263,8 @@ progress::-moz-progress-bar {
 
 .request-status-email {
   font-size: 1rem;
-  font-weight: bold;
-  color: hsl(210, 17%, 98%);
+  font-weight: 600;
+  color: #495057;
 }
 
 .request-status-badge {
@@ -250,12 +279,12 @@ progress::-moz-progress-bar {
 }
 
 .request-status-pending {
-  background-color: #f39c12;
-  color: #fff;
+  background-color: #ffd43b;
+  color: #664d03;
 }
 
 .request-status-completed {
-  background-color: #27ae60;
+  background-color: #40c057;
   color: #fff;
 }
 
@@ -271,13 +300,19 @@ progress::-moz-progress-bar {
   justify-content: center;
   padding: 0.5rem 1rem;
   border-radius: 6px;
-  background-color: #007bff;
+  background-color: #228be6;
   color: #fff;
   font-size: 0.9rem;
   font-weight: bold;
   border: none;
   cursor: pointer;
-  transition: background 0.2s ease-in-out;
+  transition: all 0.2s ease;
+}
+
+.request-status-button:hover {
+  background-color: #1971c2;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .delete-btn {
@@ -287,66 +322,87 @@ progress::-moz-progress-bar {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background-color: #dc3545;
+  background-color: #fa5252;
   color: #fff;
   font-size: 1rem;
   border: none;
   cursor: pointer;
-  transition: background-color 0.2s ease-in-out;
+  transition: all 0.2s ease;
   padding: 0;
   margin-left: 0.5rem;
 }
 
 .delete-btn:hover {
-  background-color: #c82333;
+  background-color: #e03131;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .delete-process-btn {
-  background-color: #dc3545;
+  background-color: #fa5252;
   color: #fff;
   border: none;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s ease-in-out;
+  transition: all 0.2s ease;
+  font-weight: 600;
 }
 
 .delete-process-btn:hover {
-  background-color: #c82333;
+  background-color: #e03131;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* FAQ Styles */
-.faq-container {
-  max-width: 800px;
-  margin: 2rem auto;
-  padding: 1.5rem;
-  background-color: transparent;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 8px;
-}
+
 
 .faq-question {
-  padding: 0.75rem 1rem;
-  margin: 0.5rem 0;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
+  padding: 1.25rem 1.5rem;
+  margin: 1rem 0;
+  background-color: #f1f3f5;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  color: #1864ab;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.faq-question::after {
+  content: "+";
+  font-size: 1.5rem;
+  color: #868e96;
+  transition: transform 0.3s ease;
 }
 
 .faq-question:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  transform: scale(1.02);
+  background-color: #e9ecef;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.faq-question:hover::after {
+  color: #1864ab;
+}
+
+.faq-question[aria-expanded="true"]::after {
+  transform: rotate(45deg);
 }
 
 .faq-answer {
-  padding: 0.75rem 1rem;
-  margin: 0.25rem 0 0.75rem 1rem;
-  background-color: transparent;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-  line-height: 1.5;
+  padding: 1.5rem;
+  margin: 0.25rem 0 1.5rem;
+  background-color: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  line-height: 1.6;
+  color: #495057;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 .hidden {
@@ -355,109 +411,112 @@ progress::-moz-progress-bar {
 
 .login-intro-text {
   display: flex; 
-  justify-content: center
+  justify-content: center;
+  color: #495057;
 }
 
 .login-error-message {
-    display: flex; 
-    justify-content: center;
-    color: red;
-    font-size: small;
+  display: flex; 
+  justify-content: center;
+  color: #e03131;
+  font-size: small;
 }
 
 /* Feedback count message styles */
 #feedback-count-msg {
-    margin: 1rem 0;
-    padding: 1rem;
-    border-radius: 4px;
-    font-weight: 500;
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 8px;
+  font-weight: 500;
 }
 
 #feedback-count-msg.insufficient {
-    background-color: var(--pico-background-color);
-    border: 1px solid var(--pico-form-element-invalid-border-color);
+  border: 1px solid #fa5252;
+  color: #e03131;
 }
 
 #feedback-count-msg.sufficient {
-    background-color: var(--pico-background-color);
-    border: 1px solid var(--pico-form-element-valid-border-color);
+  border: 1px solid #40c057;
+  color: #2b8a3e;
 }
 
 .status-line {
-    margin-bottom: 0.5rem;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
 }
 
 .status-line p {
-    margin: 0;
-    margin-top: 0.25rem;
-    color: var(--pico-muted-color);
+  margin: 0;
+  margin-top: 0.25rem;
+  color: #868e96;
 }
 
 .status-icon {
-    flex-shrink: 0;
+  flex-shrink: 0;
 }
 
 .invalid-list {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--pico-muted-border-color);
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #dee2e6;
 }
 
 .invalid-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    color: var(--pico-form-element-invalid-active-border-color);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: #e03131;
 }
 
 .invalid-list ul {
-    margin: 0;
-    padding-left: 2rem;
+  margin: 0;
+  padding-left: 2rem;
 }
 
 .invalid-list li {
-    color: var(--pico-form-element-invalid-active-border-color);
+  color: #e03131;
 }
 
 /* Use PicoCSS's built-in invalid state styling */
 button[aria-invalid="true"] {
-    --pico-background-color: var(--pico-invalid-background-color);
-    --pico-border-color: var(--pico-invalid-border-color);
-    cursor: not-allowed;
+  --pico-background-color: var(--pico-invalid-background-color);
+  --pico-border-color: var(--pico-invalid-border-color);
+  cursor: not-allowed;
 }
 
 button[aria-invalid="true"]:hover {
-    --pico-background-color: var(--pico-invalid-background-color);
-    --pico-border-color: var(--pico-invalid-border-color);
+  --pico-background-color: var(--pico-invalid-background-color);
+  --pico-border-color: var(--pico-invalid-border-color);
 }
 
 /* Collapsible section styling */
 details[open] .collapsible-toggle {
-    background-color: var(--pico-primary-hover);
+  background-color: var(--pico-primary-hover);
 }
 
 details > summary {
-    list-style: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
+  list-style: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 details > summary::-webkit-details-marker {
-    display: none;
+  display: none;
 }
 
 .collapsible-toggle {
-    margin-top: 1rem;
-    width: fit-content;
+  margin-top: 1rem;
+  width: fit-content;
 }
 
 #new-request-section {
-    padding: 1rem;
-    background: var(--pico-card-background-color);
-    border-radius: var(--pico-border-radius);
-    margin-top: 1rem;
+  padding: 1.5rem;
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  margin-top: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }

@@ -40,6 +40,7 @@ app, rt = fast_app(
         MarkdownJS(),  # Allows rendering markdown in feedback text, if needed.
         Link(rel='stylesheet', href='/static/styles.css', type='text/css')
     ),
+    htmlkw={'data-theme':'light'},
     exception_handlers={HTTPException: lambda req, exc: Response(content="", status_code=exc.status_code, headers=exc.headers)}
 )
 
