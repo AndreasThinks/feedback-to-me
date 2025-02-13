@@ -1387,12 +1387,84 @@ def get_admin(req):
     if not user.is_admin:
         return RedirectResponse("/dashboard", status_code=303)
     
+    success = req.query_params.get('success')
+    
     admin_page = Container(
         H2("Admin Dashboard"),
-        P("Welcome to the admin dashboard. More features coming soon.")
+        P("Welcome to the admin dashboard."),
+        Div(P("Database uploaded successfully!", cls="success"), cls="alert") if success else None,
+        Article(
+            H2("Database Management"),
+            A(Button("Download Database"), href="/admin/download-db", cls="primary"),
+            Form(
+                Input(type="file", name="dbfile", accept=".db", required=True),
+                Button("Upload Database", type="submit"),
+                action="/admin/upload-db",
+                method="post",
+                enctype="multipart/form-data"
+            )
+        )
     )
     
     return generate_themed_page(admin_page, auth=auth, page_title="Admin Dashboard")
+
+@app.get("/admin/download-db")
+def download_db(req):
+    auth = req.scope.get("auth")
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    
+    user = users("id=?", (auth,))[0]
+    if not user.is_admin:
+        return RedirectResponse("/dashboard", status_code=303)
+    
+    return FileResponse("data/feedback.db", filename="feedback-backup.db", media_type="application/x-sqlite3")
+
+@app.post("/admin/upload-db")
+async def upload_db(req):
+    auth = req.scope.get("auth")
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    
+    user = users("id=?", (auth,))[0]
+    if not user.is_admin:
+        return RedirectResponse("/dashboard", status_code=303)
+    
+    try:
+        form = await req.form()
+        file = form["dbfile"]
+        if not file.filename.endswith('.db'):
+            return Titled("Error", P("Invalid file type. Please upload a .db file."))
+        
+        # Save uploaded file with a temporary name
+        import shutil, os
+        from pathlib import Path
+        
+        # Create backup of current database
+        backup_path = "data/feedback.db.backup"
+        shutil.copy2("data/feedback.db", backup_path)
+        
+        try:
+            # Save the uploaded file
+            contents = await file.read()
+            with open("data/feedback.db", "wb") as f:
+                f.write(contents)
+            
+            # Remove the backup if everything succeeded
+            os.remove(backup_path)
+            
+            return RedirectResponse("/admin?success=true", status_code=303)
+        except Exception as e:
+            # Restore from backup if something went wrong
+            if os.path.exists(backup_path):
+                shutil.copy2(backup_path, "data/feedback.db")
+                os.remove(backup_path)
+            logger.error(f"Database upload failed: {str(e)}")
+            return Titled("Error", P("Failed to upload database. The previous database has been restored."))
+            
+    except Exception as e:
+        logger.error(f"Database upload failed: {str(e)}")
+        return Titled("Error", P("Failed to process uploaded file."))
 
 @app.post("/feedback-process/{process_id}/send_email")
 def send_feedback_email_route(process_id: str, token: str, recipient_first_name: str = "", recipient_company: str = ""):
