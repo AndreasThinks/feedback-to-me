@@ -209,98 +209,79 @@ Feedback:
 def generate_completed_feedback_report(feedback_input: str) -> tuple[str, str]:
     """
     Takes formatted feedback data and generates a comprehensive feedback report using Google Gemini via LangChain.
-    
+
     Args:
         feedback_input: Formatted string containing feedback data with quality ratings and themed feedback.
-        
+
     Returns:
-        A markdown-formatted feedback report string.
+        A tuple of:
+            1) The prompt sent to the LLM
+            2) The markdown-formatted feedback report string.
     """
     try:
-
         from config import GEMINI_API_KEY
         print(GEMINI_API_KEY)
 
-
+        # Instantiate the client
         client = genai.Client(api_key=GEMINI_API_KEY)
 
         logger.debug("Starting generation of complete feedback report.")
-        # Instantiate LLM for report generation using a different Gemini model
-        
-        prompt = f"""You are a professional feedback report writer. Your task is to analyze the feedback data below and create a comprehensive, well-structured feedback report in markdown format.
 
-The report should:
-1. Start with an executive summary highlighting key strengths and areas for improvement.
-2. Analyze quality ratings in detail:
-   - Compare ratings across different roles (peers, supervisors, reports)
-   - Highlight significant variations between role perspectives (>1 point difference)
-   - Consider both averages and rating ranges
-   - Note when sample sizes are small (< 3 responses)
-   - Explain what high variance or standard deviation might indicate
-3. Discuss the identified themes by grouping related feedback together.
-4. Provide actionable recommendations based on both ratings and themes.
-5. Use a professional, constructive tone throughout.
-6. Format everything in markdown for easy reading.
-7. Do not output anything other than the markdown text.
+        # Create a structured prompt emphasizing the layout and confidentiality
+        prompt = f"""
+You are a professional coach specializing in personal development. Your task is to create a well-structured, concise, and constructive feedback report in **markdown format**, based on the feedback information provided below.
 
-Special considerations:
-- Look for patterns in the raw rating values that might indicate specific contexts or situations
-- If a role has few responses, acknowledge the limited sample size
-- When there are significant differences between role perspectives, explore potential reasons
-- For qualities with high standard deviation (>1.0), discuss possible contextual factors
-- Look for patterns where certain roles consistently rate differently
-- Consider how outliers in the raw values might represent unique perspectives or situations
+## Important Instructions
 
-Here is the feedback data to analyze:
+1. **High-Level Focus**:
+   - Concentrate on trends, themes, and major takeaways. Avoid excessive detail or raw data references.
+2. **Numerical Ratings** (if applicable):
+   - Examine how scores might differ by role (peers, managers, etc.) or by theme.
+   - Identify meaningful gaps or variations to guide actionable feedback.
+3. **Actionable Feedback**:
+   - Use a **Continue / Stop / Start** framework to give clear recommendations for growth.
+   - Prioritize professional, constructive, and supportive language.
+4. **Confidentiality & Anonymity**:
+   - Do not reference any specific individuals or the underlying data sources.
+   - Do not reveal how or why the report is generated; just present it as a synthesized coaching document.
+5. **Report Structure**:
+   - **Introduction**: Brief, positive opening to set the tone.
+   - **Key Trends & Takeaways**: High-level overview of strengths and areas for growth.
+   - **Detailed Observations**: Summarize 2–3 main themes (e.g., Communication, Leadership, etc.). Include role-based variations if relevant, always protecting anonymity.
+   - **Action Plan**:
+       - **Continue**: Reinforce current strengths and positive behaviors.
+       - **Stop**: Identify counterproductive behaviors or habits.
+       - **Start**: Suggest new approaches or habits for improvement.
+   - **Conclusion**: A short, encouraging wrap-up with final thoughts on development.
 
+Below is the feedback data for your analysis. Please generate a **markdown-formatted report** following the structure above. Do not provide any text beyond the markdown report itself.
+
+Feedback Data:
 {feedback_input}
 
-Please generate a comprehensive feedback report that is:
-- Well-structured with clear sections
-- Written in a professional tone
-- Balanced between strengths and areas for improvement
-- Focused on actionable insights
-- Includes role-specific perspectives when available
-- Acknowledges data limitations where relevant
-- Highlights significant rating variations between roles
-- Discusses potential reasons for high variance scores
-- Fully formatted in markdown with appropriate headers and bullet points
+Remember, do not disclose anything about the data source or generation process. Speak directly to the recipient as their coach, focusing on personal development.
+Remember to output ONLY MARKDOWN, directly. 
 
-You should return the markdown directly, with no additional formatting needed. JUST OUTPUT THE MARKDOWN."""
-        
+Start your report with this line
+**Introduction:**
+"""
+
         logger.debug("Sending prompt to LLM for feedback report generation.")
+
+        # Send the prompt to the Gemini model
         response = client.models.generate_content(
             model="gemini-2.0-flash-thinking-exp",
             contents=prompt
         )
+
         logger.debug("Received response from LLM for feedback report generation.")
         logger.debug("Feedback report generated successfully.")
+
+        # Clean up or post-process the markdown if needed
         markdown_output = clean_markdown(response.text)
+
         return prompt, markdown_output
-        
+
     except Exception as e:
         logger.error(f"Error generating feedback report: {str(e)}")
-        return "Error: Unable to generate feedback report. Please try again later."
-if __name__ == "__main__":
-    logger.debug("Executing example usage from llm_functions main block.")
-    # Example usage for generating a complete feedback report
-    sample_feedback = (
-        "I find that you always show initiative but sometimes you let your temper get the better of you. "
-        "However, overall you tend to work independently and thrive under pressure."
-    )
-    
-    logger.debug("Extracting themes from sample feedback.")
-    themes = convert_feedback_text_to_themes(sample_feedback)
-    logger.debug(f"Extracted Themes: {themes}")
-    print("Extracted Themes:")
-    print(themes)
-    
-    # Generate a complete feedback report using the extracted themes combined with quality ratings
-    # Here, we assume a sample quality rating and include the themes in the input data.
-    feedback_input = f"Quality Ratings: 4.5/5\nThemes: {themes}"
-    logger.debug("Generating feedback report using provided feedback input.")
-    report = generate_completed_feedback_report(feedback_input)
-    logger.debug("Feedback Report generated:")
-    logger.debug(report)
-    print("\nFeedback Report:")
-    print(report)
+        return "Error: Unable to generate feedback report. Please try again later.", ""
