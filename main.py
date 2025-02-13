@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 from models import password_reset_tokens_tb, feedback_themes_tb, feedback_submission_tb, users, feedback_process_tb, feedback_request_tb, FeedbackProcess, FeedbackRequest, Login, confirm_tokens_tb
-from pages import how_it_works_page, generate_themed_page, faq_page, error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, privacy_policy_page
+from pages import how_it_works_page, generate_themed_page, faq_page, error_message, login_or_register_page, register_form, login_form, landing_page, navigation_bar_logged_out, navigation_bar_logged_in, footer_bar, privacy_policy_page, pricing_page
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
@@ -275,6 +275,10 @@ def get():
 @app.get("/privacy-policy")
 def get(req):
     return generate_themed_page(privacy_policy_page, auth=req.scope.get("auth"))
+
+@app.get("/pricing")
+def get(req):
+    return generate_themed_page(pricing_page, auth=req.scope.get("auth"))
 
 @app.get("/get-started")
 def get(req, sess):

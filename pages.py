@@ -1,7 +1,7 @@
 # we use this page for our templates and skins
 
 from fasthtml.common import *
-from config import BASE_URL
+from config import BASE_URL, STARTING_CREDITS, COST_PER_CREDIT_USD
 from models import users
 
 def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
@@ -57,25 +57,61 @@ def dashboard_page(user):
         )
     )
 
-introductory_paragraph = """
-Feedback is a gift - that's why firms will spend fortunes hiring consultancies to run 360 feedback processes. But those processes are lengthy, costly, and hard to manage.
-
-Feedback to Me streamlines the entire 360 feedback process. Just enter the emails of a few people you work with, and we'll do the rest: we'll give each a custom survey, and once they've completed it, use AI to generate a totally anonymous report.
-
-At every step, your data is secure, and the process totally anonymous.
-
-Feedback to Me is currently in alpha testing - we'd recommend not using it with sensitive data.
-"""
-
 landing_page = Container(
     Div(
-         H2("Welcome to Feedback to Me"),
-         P("360 feedback, made simpe and powered by AI"),
-         A(Button("Get Started", href="/get-started", cls="btn-primary"), href='/get-started')
-         ,
-         P("Join now and create your first report for free!"),
-         Div(introductory_paragraph, cls='Marked'),
-         cls="landing-page"
+        H2("Welcome to Feedback to Me"),
+        P("360° feedback, made simple and powered by AI"),
+        A(Button("Get Started", href="/get-started", cls="btn-primary"), href='/get-started'),
+        P("Join now and create your first report for free!"),
+        Div(
+            P("Feedback is a gift - that's why firms spend fortunes on 360° feedback processes."),
+            H3("✨ What makes us different:"),
+            Ul(
+                Li("Simple: Just enter a few email addresses"),
+                Li("Fast: AI-powered analysis and report generation"),
+                Li("Secure: Your data is protected and feedback stays anonymous"),
+                Li("Affordable: Start with a free report"),
+                cls="features-list"
+            ),
+            P("Get valuable insights about your performance and growth areas, all while maintaining complete confidentiality."),
+            cls="content-section"
+        ),
+        cls="landing-page"
+    )
+)
+
+pricing_page = Container(
+    Div(
+        Div(
+            H3("Individual Feedback"),
+            P(f"Start with {STARTING_CREDITS} free credits to try the service"),
+            P("Our process is simple:"),
+            Ul(
+                Li("1. Create your account and get your free credits"),
+                Li("2. Enter email addresses for your feedback providers"),
+                Li("3. Each feedback request uses 1 credit"),
+                Li("4. Get your comprehensive AI-powered feedback report"),
+                cls="pricing-features"
+            ),
+            P(f"Additional credits: ${COST_PER_CREDIT_USD} per feedback request"),
+            A(Button("Get Started", href="/get-started"), href="/get-started", cls="pricing-cta"),
+            cls="pricing-tier individual"
+        ),
+        Div(
+            H3("Business Solutions"),
+            P("Unlock organization-wide insights"),
+            Ul(
+                Li("Custom feedback processes for teams"),
+                Li("Aggregated insights across departments"),
+                Li("Advanced analytics and reporting"),
+                Li("Dedicated support and training"),
+                cls="pricing-features"
+            ),
+            P("Contact us for enterprise pricing and features"),
+            A(Button("Contact Sales", href="mailto:sales@feedback-to.me"), href="mailto:sales@feedback-to.me", cls="pricing-cta"),
+            cls="pricing-tier business"
+        ),
+        cls="pricing-container"
     )
 )
 
@@ -84,6 +120,7 @@ navigation_bar_logged_out = Nav(
         Li(Strong(A("Feedback to Me", href="/")))),
     Ul(
         Li(AX("How It Works", href="/how-it-works")),
+        Li(AX("Pricing", href="/pricing")),
         Li(AX("FAQ", href="/faq")),
         Li(AX("Get Started", href='/get-started'))
     ),
@@ -94,6 +131,7 @@ def navigation_bar_logged_in(user):
     nav_items = [
         Li(A("Dashboard", href="/dashboard")),
         Li(A("How It Works", href="/how-it-works")),
+        Li(A("Pricing", href="/pricing")),
         Li(AX("FAQ", href="/faq")),
         Li(Span(f"Credits: {user.credits}")),
         Li(A("Buy Credits", href="/buy-credits"))
@@ -113,10 +151,7 @@ def navigation_bar_logged_in(user):
 footer_bar = Footer(A("© 2025 Feedback to Me"), href=BASE_URL, cls='footer')
 
 how_it_works_page = Container(
-    H2("How Feedback to Me Works"),
     Div("""
-## The Power of 360° Feedback
-
 360° feedback is a powerful tool for personal and professional development. By collecting insights from peers, supervisors, and reports, you get a comprehensive view of your strengths and areas for growth.
 
 ## Our Process
