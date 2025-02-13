@@ -448,7 +448,7 @@ def post_reset_password(token: str, pwd: str, pwd_confirm: str):
         return Titled(
             "Password Reset Complete",
             P("Your password has been reset successfully. You can now log in with your new password."),
-            A("Go to Login", href="/login-form", cls="button")
+            A("Go to Login", href="/get-started", cls="button")
         )
         
     except Exception as e:
