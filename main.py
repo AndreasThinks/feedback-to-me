@@ -1058,7 +1058,7 @@ def get_report_status_page(process_id : str, req):
             H3(f"{process.process_title} {' (Complete)' if process.feedback_report else ' (In Progress)'}"),
             Button("Delete Process", 
                   cls="delete-process-btn",
-                  onclick=f"if(confirm('Are you sure you want to delete this entire feedback process? Your credits for pending requests will be refunded, but completed questionnaires will be discarded.')) window.location.href='/feedback-process/{process_id}/delete'"),
+                  onclick=f"if(confirm('{process.feedback_report and 'As this report has been generated, your credits will not be refunded. ' or 'Your credits for pending requests will be refunded. '}Are you sure you want to delete this entire feedback process? Completed questionnaires will be discarded.')) window.location.href='/feedback-process/{process_id}/delete'"),
             cls="process-header"
         ),
         P(f"Created: {formatted_date}"),
@@ -1077,7 +1077,7 @@ def get_report_status_page(process_id : str, req):
                     Kbd('Completed', cls='request-status-completed') if submission else Kbd('Pending', cls='request-status-pending'),
                     Button("✕", 
                           cls="delete-btn",
-                          onclick=f"if(confirm('Are you sure you want to delete this feedback request? Your credits will be refunded.')) window.location.href='/feedback-process/{process_id}/delete-request/{feedback_request.token}'")
+                          onclick=f"if(confirm('{process.feedback_report and 'As this report has been generated, your credits will not be refunded. ' or 'Your credits will be refunded. '}Are you sure you want to delete this feedback request?')) window.location.href='/feedback-process/{process_id}/delete-request/{feedback_request.token}'")
                 ),
                 cls="request-status-header"),
                 Div(
@@ -1616,13 +1616,17 @@ def delete_feedback_request(process_id: str, token: str, sess):
         if request.process_id != process_id:
             return "Invalid request", 400
         
-        for submission in feedback_submission_tb("request_id=?", (token,)):
-            feedback_submission_tb.delete(submission.id)
+        submissions = feedback_submission_tb("request_id=?", (token,))
+
+        if len(submissions) > 0 :   
+            for submission in submissions:
+                feedback_submission_tb.delete(submission.id)
         
-        # Return credit to user
-        user = users("id=?", (user_id,))[0]
-        user.credits += 1
-        users.update(user)
+        # Only refund credit if no report exists
+        if not process.feedback_report:
+            user = users("id=?", (user_id,))[0]
+            user.credits += 1
+            users.update(user)
         
         # Delete the request
         feedback_request_tb.delete(token)
@@ -1647,22 +1651,28 @@ def delete_process(process_id: str, sess):
         if process.user_id != user_id:
             return "Unauthorized", 401
         
-        # Get all pending requests to refund credits
-        pending_requests = feedback_request_tb("process_id=? AND completed_at IS NULL", (process_id,))
-        
-        # Return credits to user for pending requests
-        if pending_requests:
-            user = users("id=?", (user_id,))[0]
-            user.credits += len(pending_requests)
-            users.update(user)
+        # Only refund credits if no report exists
+        if not process.feedback_report:
+            # Get all pending requests to refund credits
+            pending_requests = feedback_request_tb("process_id=? AND completed_at IS NULL", (process_id,))
+            
+            # Return credits to user for pending requests
+            if pending_requests:
+                logger.debug(f'Refunding pending requests: {len(pending_requests)}')
+                user = users("id=?", (user_id,))[0]
+                user.credits += len(pending_requests)
+                users.update(user)
         
         # Delete all feedback submissions for this process
         submissions = feedback_submission_tb("process_id=?", (process_id,))
-        for submission in submissions:
-            feedback_submission_tb.delete(submission.id)
-
-        for theme in feedback_themes_tb("feedback_id=?", (submission.id,)):
-            feedback_themes_tb.delete(theme.id)
+        if len (submissions) > 0:
+            for submission in submissions:
+                feedback_submission_tb.delete(submission.id)
+                
+            submission_themes = feedback_themes_tb("process_id=?", (process_id,))
+            if len(submission_themes) > 0:
+                for theme in submission_themes:
+                    feedback_themes_tb.delete(theme.id)
         
         # Delete all requests (both pending and completed)
         requests = feedback_request_tb("process_id=?", (process_id,))
