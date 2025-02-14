@@ -723,10 +723,15 @@ def payment_success(req, sess, session_id: str):
 
         # Only show success message, actual credit addition happens in webhook
         message = f"Payment successful! {credits} credits will be added to your account shortly."
+        if user_id:
+            user = users("id=?", (user_id,))[0]
+            user.credits += credits
+            users.update(user)
         return Titled("Payment Success", P(message), A("Go to Dashboard", href="/dashboard"))
     except Exception as e:
         logger.error(f"Error in payment success route: {str(e)}")
         return Titled("Error", P("Error processing payment."))
+
 
 @app.get("/payment-cancel")
 def payment_cancel():
@@ -1611,7 +1616,8 @@ def delete_feedback_request(process_id: str, token: str, sess):
         if request.process_id != process_id:
             return "Invalid request", 400
         
-        feedback_submission_tb.delete("request_id=?", (token,))
+        for submission in feedback_submission_tb("request_id=?", (token,)):
+            feedback_submission_tb.delete(submission.id)
         
         # Return credit to user
         user = users("id=?", (user_id,))[0]
@@ -1653,8 +1659,10 @@ def delete_process(process_id: str, sess):
         # Delete all feedback submissions for this process
         submissions = feedback_submission_tb("process_id=?", (process_id,))
         for submission in submissions:
-            feedback_themes_tb.delete("feedback_id=?", (submission.id,))
             feedback_submission_tb.delete(submission.id)
+
+        for theme in feedback_themes_tb("feedback_id=?", (submission.id,)):
+            feedback_themes_tb.delete(theme.id)
         
         # Delete all requests (both pending and completed)
         requests = feedback_request_tb("process_id=?", (process_id,))
