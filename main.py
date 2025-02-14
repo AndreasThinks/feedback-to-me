@@ -1027,16 +1027,16 @@ def get_report_status_page(process_id : str, req):
     formatted_date = created_at_dt.strftime("%B %d, %Y %H:%M")
 
     status_section = Article(
-        H3(f"{process.process_title} {' (Complete)' if process.feedback_report else ' (In Progress)'}"),
-        P(f"Created: {formatted_date}"),
-        Div(opening_text, cls='marked'),
-        Div(missing_text) if missing_text else None,
         Div(
+            H3(f"{process.process_title} {' (Complete)' if process.feedback_report else ' (In Progress)'}"),
             Button("Delete Process", 
                   cls="delete-process-btn",
                   onclick=f"if(confirm('Are you sure you want to delete this entire feedback process? Your credits for pending requests will be refunded, but completed questionnaires will be discarded.')) window.location.href='/feedback-process/{process_id}/delete'"),
-            style="margin-top: 1rem;"
-        )
+            cls="process-header"
+        ),
+        P(f"Created: {formatted_date}"),
+        Div(opening_text, cls='marked'),
+        Div(missing_text) if missing_text else None
     )
     
     requests_list = []

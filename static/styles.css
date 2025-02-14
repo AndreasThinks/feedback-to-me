@@ -436,21 +436,43 @@ a[href='/buy-credits'] button:hover {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.process-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.process-header h3 {
+  margin: 0;
+}
+
 .delete-process-btn {
-  background-color: #fa5252;
-  color: #ffffff;
-  border: none;
+  background-color: var(--pico-del-background-color);
+  color: var(--pico-del-color);
+  border: 2px solid var(--pico-del-border-color);
   padding: 0.5rem 1rem;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
   font-weight: 600;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.delete-process-btn::before {
+  content: "⚠️";
+  font-size: 1.1em;
 }
 
 .delete-process-btn:hover {
-  background-color: #e03131;
+  background-color: #c92a2a;
+  color: #ffffff;
+  border-color: #c92a2a;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(201, 42, 42, 0.2);
 }
 
 .faq-question {
