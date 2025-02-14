@@ -1134,6 +1134,7 @@ def get_report_status_page(process_id : str, req):
     return process_page_content
 
 def create_feedback_report_input(process_id):
+    from html import escape
     logger.info(f"Creating feedback report input for process {process_id}")
     process = feedback_process_tb[process_id]
     logger.debug(f"Process qualities: {process.qualities}")
@@ -1235,9 +1236,9 @@ def create_feedback_report_input(process_id):
     # Get themed feedback
     themes = feedback_themes_tb("feedback_id IN (SELECT id FROM feedback_submission WHERE process_id=?)", (process_id,))
     themed_feedback = {
-        "positive": [t.theme for t in themes if t.sentiment == "positive"],
-        "negative": [t.theme for t in themes if t.sentiment == "negative"],
-        "neutral": [t.theme for t in themes if t.sentiment == "neutral"]
+        "positive": [escape(t.theme) for t in themes if t.sentiment == "positive"],
+        "negative": [escape(t.theme) for t in themes if t.sentiment == "negative"],
+        "neutral": [escape(t.theme) for t in themes if t.sentiment == "neutral"]
     }
     
     report_input = f"""Feedback Report Summary
@@ -1388,6 +1389,7 @@ def get_feedback_submitted():
 
 @app.post("/new-feedback-form/{request_token}/submit")
 def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
+    from html import escape
     logger.debug(f"Submitting feedback form with data: {data}")
     try:
         feedback_request = feedback_request_tb[request_token]
@@ -1439,7 +1441,7 @@ def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
         submission_data = {
             "id": secrets.token_hex(8),
             "request_id": request_token,
-            "feedback_text": feedback_text,
+            "feedback_text": escape(feedback_text),
             "ratings": json.dumps(ratings),  # Explicitly JSON encode ratings
             "process_id": feedback_request.process_id,
             "created_at": datetime.now()
