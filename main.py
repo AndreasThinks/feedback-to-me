@@ -33,6 +33,10 @@ import stripe
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 # --------------------
 # FastHTML App Setup
 # --------------------
@@ -70,6 +74,11 @@ if admin_email and admin_password:
             "credits": 999999  # Large number of credits for admin
         })
         logger.info("Admin user created successfully")
+
+limiter = Limiter(key_func=get_remote_address)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # --------------------
 # Helper Functions
@@ -298,8 +307,9 @@ def get(req):
 def get():
     return login_form
 
+@limiter.limit("5/minute")
 @app.post("/login")
-def post_login(login: Login, sess):
+def post_login(login: Login, request: Request, sess):
     print(login)
     logger.debug(f"Login attempt for email: {login.email}")
     try:
@@ -346,8 +356,9 @@ def get_forgot_password():
     )
     return generate_themed_page(form, page_title="Reset Password")
 
+@limiter.limit("3/hour")
 @app.post("/send-reset-email")
-def post_send_reset_email(email: str):
+def post_send_reset_email(email: str, request: Request):
     """Handle forgot password form submission"""
     logger.debug(f"Password reset requested for email: {email}")
     
@@ -548,8 +559,9 @@ def validate_email_list(emails: str):
 # -----------------------
 # Routes: User Registration
 # -----------------------
+@limiter.limit("10/hour")
 @app.post("/register-new-user")
-def post_register(email: str, first_name:str, role: str, company: str, team: str, pwd: str, pwd_confirm: str, sess):
+def post_register(email: str, first_name:str, role: str, company: str, team: str, pwd: str, pwd_confirm: str, sess, request: Request):
     logger.debug(f"Registration attempt for email: {email}")
     if "auth" in sess:
         logger.debug("Clearing existing session auth")
@@ -1387,8 +1399,9 @@ def get_feedback_submitted():
     return Titled("Feedback Submitted", thank_you_text, learn_more_text,footer_bar)
     
 
+@limiter.limit("5/minute")
 @app.post("/new-feedback-form/{request_token}/submit")
-def submit_feedback_form(request_token: str, feedback_text: str, data : dict):
+def submit_feedback_form(request_token: str, feedback_text: str, data : dict, request: Request):
     from html import escape
     logger.debug(f"Submitting feedback form with data: {data}")
     try:
@@ -1651,9 +1664,10 @@ def delete_process(process_id: str, sess):
 # -----------------------
 # Routes: Admin
 # -----------------------
+@limiter.limit("30/day")
 @app.get("/admin")
-def get_admin(req):
-    auth = req.scope.get("auth")
+def get_admin(request: Request):
+    auth = request.scope.get("auth")
     if not auth:
         return RedirectResponse("/login", status_code=303)
     
@@ -1661,7 +1675,7 @@ def get_admin(req):
     if not user.is_admin:
         return RedirectResponse("/dashboard", status_code=303)
     
-    success = req.query_params.get('success')
+    success = request.query_params.get('success')
     
     admin_page = Container(
         H2("Admin Dashboard"),
@@ -1682,9 +1696,10 @@ def get_admin(req):
     
     return generate_themed_page(admin_page, auth=auth, page_title="Admin Dashboard")
 
+@limiter.limit("30/day")
 @app.get("/admin/download-db")
-def download_db(req):
-    auth = req.scope.get("auth")
+def download_db(request: Request):
+    auth = request.scope.get("auth")
     if not auth:
         return RedirectResponse("/login", status_code=303)
     
@@ -1724,9 +1739,10 @@ def download_db(req):
         logger.error(f"Database backup failed: {str(e)}")
         return Titled("Error", P("Failed to create database backup."))
 
+@limiter.limit("30/day")
 @app.post("/admin/upload-db")
-async def upload_db(req):
-    auth = req.scope.get("auth")
+async def upload_db(request : Request):
+    auth = request.scope.get("auth")
     if not auth:
         return RedirectResponse("/login", status_code=303)
     
@@ -1739,7 +1755,7 @@ async def upload_db(req):
         import os
         from datetime import datetime
         
-        form = await req.form()
+        form = await request.form()
         file = form["dbfile"]
         if not file.filename.endswith('.db'):
             return Titled("Error", P("Invalid file type. Please upload a .db file."))
