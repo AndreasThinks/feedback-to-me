@@ -151,47 +151,72 @@ def navigation_bar_logged_in(user):
 footer_bar = Footer(A("© 2025 Feedback to Me"), href=BASE_URL, cls='footer')
 
 how_it_works_page = Container(
-    Div("""
-360° feedback is a powerful tool for personal and professional development. By collecting insights from peers, supervisors, and reports, you get a comprehensive view of your strengths and areas for growth.
-
-## Our Process
-
-1. **Initial Setup**
-   - Create your account
-   - Choose the qualities you want feedback on
-   - Enter email addresses for your feedback providers
-
-2. **Feedback Collection**
-   - We send personalized survey links to your chosen participants
-   - Each participant provides anonymous ratings and written feedback
-   - Our AI ensures all feedback remains anonymous by removing identifying details
-
-3. **AI-Powered Analysis**
-   - Once enough responses are collected, our AI analyzes the feedback
-   - We identify common themes and patterns
-   - Statistical analysis shows how different groups perceive your performance
-
-4. **Comprehensive Report**
-   - Receive a detailed report with actionable insights
-   - View aggregated ratings across different qualities
-   - See anonymized themes from written feedback
-   - Get specific recommendations for growth
-
-## Privacy & Security
-
-Your privacy and data security are our top priorities. All feedback is anonymized, and we use enterprise-grade encryption to protect your information. Learn more in our [Privacy Policy](/privacy-policy).
-
-## Credit System
-
-- Start with free credits for your first feedback process
-- Purchase additional credits as needed
-- One credit = one feedback request
-- Credits never expire
-
-## Support
-
-Need help? Check our [FAQ](/faq) for common questions or contact our support team.
-    """, cls="marked"),
+    Div(
+        H2("Expert insights in 3 simple steps"),
+        Div(
+            # Step 1
+            Div(
+                Div(
+                    Img(src="static/process_1.png", alt="Setup Process", 
+                        style="width: 100%; height: auto; max-width: 600px; object-fit: contain;"),
+                    cls="process-image"
+                ),
+                Div(
+                    H3("Create your request", style=f"color: var(--nord10);"),
+                    Ul(
+                        Li("Register to create your free feedback process"),
+                        Li("Enter the email of colleagues you'd like to get feedback from"),
+                        Li("We recommend a mix of roles and seniority levels, but it's up to you"),
+                        Li("Select which categories you'd like to be graded on, or enter your own"),
+                        cls="features-list"
+                    ),
+                    cls="process-content"   
+                ),
+                cls="process-step"
+            ),
+            # Step 2
+            Div(
+                Div(
+                    Img(src="static/process_2.png", alt="Feedback Collection",
+                        style="width: 100%; height: auto; max-width: 600px; object-fit: contain;"),
+                    cls="process-image"
+                ),
+                Div(
+                    H3("Collect your feedback", style=f"color: var(--nord10);"),
+                    Ul(
+                        Li("We generate a unique survey for each participant"),
+                        Li("Simply click the button to copy the unique link, and send it to your colleague"),
+                        Li("Or just press the send email button, and we'll send it for you"),  
+                        Li("Now just wait! Don't worry, we'll email you when you're ready to continue"),  
+                        cls="features-list"
+                    ),
+                    cls="process-content"
+                ),
+                cls="process-step"
+            ),
+            # Step 3
+            Div(
+                Div(
+                    Img(src="static/process_3.png", alt="AI Analysis",
+                        style="width: 100%; height: auto; max-width: 600px; object-fit: contain;"),
+                    cls="process-image"
+                ),
+                Div(
+                    H3("Generate your report", style=f"color: var(--nord10);"),
+                    Ul(
+                        Li("Once your submissions are complete, click the button to generate your report"),
+                        Li("Our AI agents will review every submission, extracting themes and feedback"),
+                        Li("Finally, our reasoning agent will review every all your materials, and generate your expert report"),
+                        cls="features-list"
+                    ),
+                    cls="process-content"
+                ),
+                cls="process-step"
+            ),
+            cls="process-container"
+        ),
+        cls="how-it-works-page"
+    )
 )
 
 privacy_policy_page = Container(

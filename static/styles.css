@@ -523,6 +523,97 @@ a[href='/buy-credits'] button:hover {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
+/* How It Works page styles */
+.how-it-works-page {
+  width: 100%;
+  padding: 2rem;
+  background: linear-gradient(135deg, #f1f3f5, #e9ecef);
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.process-container {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+  margin: 2rem 0;
+}
+
+.process-step {
+  display: flex;
+  gap: 4rem;
+  align-items: center;
+  background: #ffffff;
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.process-image {
+  flex: 1.8;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.process-content {
+  flex: 1;
+  padding-right: 2rem;
+}
+
+.process-content h3 {
+  margin-bottom: 1.5rem;
+  font-size: 1.6rem;
+}
+
+.process-content .features-list {
+  margin: 0;
+}
+
+/* Responsive design */
+@media (max-width: 1024px) {
+  .process-step {
+    gap: 2rem;
+    padding: 2rem;
+  }
+  
+  .process-image {
+    flex: 1;
+  }
+  
+  .process-content {
+    flex: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .process-step {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem;
+  }
+
+  .process-image {
+    margin-bottom: 1.5rem;
+  }
+
+  .process-image img {
+    max-width: 100% !important;
+  }
+
+  .process-content {
+    padding-right: 0;
+  }
+
+  .process-content .features-list {
+    text-align: left;
+  }
+
+  .how-it-works-page {
+    padding: 1rem;
+  }
+}
+
 /* Pricing page styles */
 .pricing-container {
   display: grid;

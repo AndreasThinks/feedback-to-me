@@ -749,10 +749,13 @@ def get(req):
     logger.debug(f"Found {len(processes)} feedback processes")
     
     active_html = []
+    generatable_html = []
     completed_html = []
     for p in processes:
         if p.feedback_report:
             completed_html.append(p)
+        elif p.feedback_count >= p.min_submissions_required:
+            generatable_html.append(p)
         else:
             active_html.append(p)
 
@@ -771,7 +774,16 @@ def get(req):
         cls="report-section"),
         Div(
             H3("Report ready to generate"),
-            P("No feedback ready for review.", cls="text-muted"),
+            *[
+                Article(
+                    Div(
+                        H3(f"{p.process_title} {' (Complete)' if p.feedback_report else ' (In Progress)'}"),
+                        cls="process-header"
+                    ),
+                    P(f"Created: {datetime.fromisoformat(p.created_at).strftime('%B %d, %Y %H:%M')}"),
+                    A(Button("Generate Report"), href=f"/feedback-process/{p.id}", cls="primary")
+                ) for p in generatable_html
+            ] or P("No feedback ready for review.", cls="text-muted"),
         cls="report-section"),
         Div(
             H3("Completed reports"),
