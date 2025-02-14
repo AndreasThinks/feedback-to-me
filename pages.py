@@ -64,13 +64,14 @@ landing_page = Container(
         A(Button("Get Started", href="/get-started", cls="btn-primary"), href='/get-started'),
         P("Join now and create your first report for free!"),
         Div(
-            P("Feedback is a gift - that's why firms spend fortunes on 360° feedback processes."),
+            P("Professional development shouldn't be limited by traditional feedback costs. Our advanced AI transforms colleague insights into personalized growth recommendations, making expert development guidance accessible to everyone."),
             H3("✨ What makes us different:"),
             Ul(
-                Li("Simple: Just enter a few email addresses"),
-                Li("Fast: AI-powered analysis and report generation"),
-                Li("Secure: Your data is protected and feedback stays anonymous"),
-                Li("Affordable: Start with a free report"),
+                Li("Fast: Get started with just a few email addresses"),
+                Li("Impactive: Personalised expert recommendations, bespoke to your needs"),
+                Li("Anonymous: Advanced AI agents to make feedback detailed but untrackable"),
+                Li("Secure: Store our data in our secure cloud, or host on-premises"),
+                Li("Affordable: Start with a free report today"),
                 cls="features-list"
             ),
             P("Get valuable insights about your performance and growth areas, all while maintaining complete confidentiality."),
