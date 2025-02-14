@@ -706,17 +706,27 @@ def create_checkout_session(req, sess, credits: int):
 @app.get("/payment-success")
 def payment_success(req, sess, session_id: str):
     try:
-         session = stripe.checkout.Session.retrieve(session_id)
-         credits = int(session.metadata.get("credits", 0))
-         user_id = session.metadata.get("user_id")
-         if user_id:
-             user = users("id=?", (user_id,))[0]
-             user.credits += credits
-             users.update(user)
-         message = f"Payment successful! {credits} credits have been added to your account."
-         return Titled("Payment Success", P(message), A("Go to Dashboard", href="/dashboard"))
+        # Validate session exists
+        current_user_id = sess.get("auth")
+        if not current_user_id:
+            logger.error("Payment success accessed without valid session")
+            return RedirectResponse("/login", status_code=303)
+
+        session = stripe.checkout.Session.retrieve(session_id)
+        credits = int(session.metadata.get("credits", 0))
+        user_id = session.metadata.get("user_id")
+
+        # Validate payment is for current user
+        if not user_id or current_user_id != user_id:
+            logger.error(f"User session {current_user_id} mismatch with payment user {user_id}")
+            return Titled("Security Error", P("Invalid payment session detected"))
+
+        # Only show success message, actual credit addition happens in webhook
+        message = f"Payment successful! {credits} credits will be added to your account shortly."
+        return Titled("Payment Success", P(message), A("Go to Dashboard", href="/dashboard"))
     except Exception as e:
-         return Titled("Error", P("Error processing payment."))
+        logger.error(f"Error in payment success route: {str(e)}")
+        return Titled("Error", P("Error processing payment."))
 
 @app.get("/payment-cancel")
 def payment_cancel():
@@ -1844,6 +1854,47 @@ def send_feedback_email_route(process_id: str, token: str, recipient_first_name:
     except Exception as e:
         logger.error(f"Error sending email for token {token}: {str(e)}")
         return P("Error sending email."), 500
+
+# Stripe Webhook Handler
+@app.post("/stripe-webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+
+    if not webhook_secret:
+        logger.error("STRIPE_WEBHOOK_SECRET not configured")
+        return Response(status_code=500)
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, webhook_secret
+        )
+    except ValueError as e:
+        logger.error("Invalid payload in webhook")
+        return Response(status_code=400)
+    except stripe.error.SignatureVerificationError as e:
+        logger.error("Invalid signature in webhook")
+        return Response(status_code=400)
+
+    if event["type"] == "checkout.session.completed":
+        try:
+            session = event["data"]["object"]
+            credits = int(session.metadata.get("credits", 0))
+            user_id = session.metadata.get("user_id")
+
+            if user_id and credits > 0:
+                user = users("id=?", (user_id,))[0]
+                user.credits += credits
+                users.update(user)
+                logger.info(f"Added {credits} credits to user {user_id} via webhook")
+            else:
+                logger.error(f"Invalid webhook data: credits={credits}, user_id={user_id}")
+        except Exception as e:
+            logger.error(f"Error processing webhook payment: {str(e)}")
+            return Response(status_code=500)
+
+    return Response(status_code=200)
 
 # Start the App
 # -------------
