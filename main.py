@@ -207,6 +207,57 @@ def send_password_reset_email(recipient: str, token: str, recipient_first_name: 
         logger.error(f"Exception while sending password reset email to {recipient}: {str(e)}")
         return False
 
+def send_report_ready_email(recipient: str, recipient_first_name: str = "") -> bool:
+    """
+    Sends an email to notify the user that their report is ready to be generated.
+    """
+    try:
+        with open("report_ready_email_template.txt", "r") as f:
+            template = f.read()
+        link = generate_external_link("dashboard")
+        filled_template = (
+            template
+            .replace("{link}", link)
+            .replace("{recipient_first_name}", recipient_first_name)
+        )
+
+        endpoint = os.environ.get("SMTP2GO_EMAIL_ENDPOINT", "https://api.smtp2go.com/v3")
+        api_key = os.environ.get("SMTP2GO_API_KEY")
+        if not api_key:
+            logger.error("SMTP2GO_API_KEY is missing.")
+            return False
+
+        payload = {
+            "sender": "noreply@feedback-to.me",
+            "to": [recipient],
+            "subject": "Your Feedback Report is Ready!",
+            "text_body": filled_template
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Smtp2go-Api-Key": api_key
+        }
+
+        logger.info(f"Sending report ready email to {recipient}")
+        response = requests.post(endpoint.rstrip("/") + "/email/send", json=payload, headers=headers)
+
+        if response.status_code == 200:
+            result_json = response.json()
+            succeeded = result_json.get("data", {}).get("succeeded", 0)
+            if succeeded == 1:
+                logger.info("Report ready email sent successfully.")
+                return True
+            else:
+                logger.error(f"SMTP2GO error sending report ready email: {result_json}")
+                return False
+        else:
+            logger.error(f"Error sending report ready email: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Exception while sending report ready email to {recipient}: {str(e)}")
+        return False
+
 def send_confirmation_email(recipient: str, token: str, recipient_first_name: str = "", recipient_company: str = "") -> bool:
     """
     Sends an email with a confirmation link containing the given token.
@@ -1502,11 +1553,21 @@ def submit_feedback_form(request_token: str, feedback_text: str, data : dict, re
                         }
                         feedback_themes_tb.insert(theme_data)
         process = feedback_process_tb[feedback_request.process_id]
+        new_count = process.feedback_count + 1
         feedback_process_tb.update(
-            {"feedback_count": process.feedback_count + 1},
+            {"feedback_count": new_count},
             feedback_request.process_id
         )
         feedback_request_tb.update(feedback_request, completed_at=datetime.now(), token=request_token)
+
+        # Check if we've just reached the minimum submissions threshold
+        if (new_count >= process.min_submissions_required and 
+            not process.feedback_report):
+            # Get the user who created the feedback process
+            process_owner = users("id=?", (process.user_id,))[0]
+            # Send notification email
+            send_report_ready_email(process_owner.email, process_owner.first_name)
+            logger.info(f"Sent report ready notification to {process_owner.email}")
         return RedirectResponse("/feedback-submitted", status_code=303)
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")

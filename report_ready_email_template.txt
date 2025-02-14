@@ -1,0 +1,8 @@
+Hi {recipient_first_name},
+
+Great news! You've received enough feedback submissions to generate your report. You can now visit your dashboard to generate your personalized feedback report.
+
+Click here to generate your report: {link}
+
+Best regards,
+The Feedback to Me Team
