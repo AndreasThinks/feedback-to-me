@@ -45,7 +45,7 @@ def dashboard_page(user):
         Div(
             H3("Collecting responses"),
             P("No active feedback collection processes.", cls="text-muted"),
-            Button("Start New Feedback Collection", hx_get="/start-new-feedback-process", hx_target="#main-content", hx_swap="innerHTML")
+            Button("Start New Feedback Collection", hx_get="/start-new-feedback-process", hx_target="#main-content", hx_swap="innerHTML"),
         ),
         Div(
             H3("Report ready to generate"),
@@ -133,8 +133,6 @@ def navigation_bar_logged_in(user):
         Li(A("How It Works", href="/how-it-works")),
         Li(A("Pricing", href="/pricing")),
         Li(AX("FAQ", href="/faq")),
-        Li(Span(f"Credits: {user.credits}")),
-        Li(A("Buy Credits", href="/buy-credits"))
     ]
     
     if user.is_admin:

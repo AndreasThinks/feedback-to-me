@@ -235,6 +235,57 @@ progress::-moz-progress-bar {
    color: #868e96;
 }
 
+/* Dashboard button styles */
+.dashboard-buttons {
+  display: flex;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  flex-wrap: wrap;
+}
+
+.collect-feedback-button {
+  text-decoration: none !important;
+}
+
+.collect-feedback-button button,
+a[href='/buy-credits'] button {
+  padding: 0.875rem 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.collect-feedback-button button {
+  background: linear-gradient(135deg, var(--nord8), var(--nord9));
+  color: #ffffff;
+}
+
+a[href='/buy-credits'] button {
+  background: #ffffff;
+  color: var(--nord10);
+  border: 2px solid var(--nord8);
+}
+
+.collect-feedback-button button:hover,
+a[href='/buy-credits'] button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.collect-feedback-button button:hover {
+  background: linear-gradient(135deg, var(--nord9), var(--nord10));
+}
+
+a[href='/buy-credits'] button:hover {
+  background: var(--nord8);
+  color: #ffffff;
+  border-color: var(--nord8);
+}
+
 .report-section {
   padding: 1.5rem;
   background: #ffffff;

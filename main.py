@@ -733,7 +733,11 @@ def get(req):
         H2(f"Hi {user.first_name}!"),
         P("Welcome to your dashboard. Here you can manage your feedback collection processes."),
         P(f"You have {user.credits} credits remaining"),
-        A(Button("Start New Feedback Collection"), href="/start-new-feedback-process", cls="collect-feedback-button"),
+        Div(
+            A(Button("Start New Feedback Collection"), href="/start-new-feedback-process", cls="collect-feedback-button"),
+            A(Button("Buy More Credits"), href='/buy-credits'),
+            cls="dashboard-buttons"
+        ),
         Div(
             H3("Collecting responses"),
             *active_html or P("No active feedback collection processes.", cls="text-muted"),
