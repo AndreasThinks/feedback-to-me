@@ -69,8 +69,8 @@ landing_page = Container(
             Ul(
                 Li("Fast: Get started with just a few email addresses"),
                 Li("Impactive: Personalised expert recommendations, bespoke to your needs"),
-                Li("Anonymous: Advanced AI agents to make feedback detailed but untrackable"),
-                Li("Secure: Store our data in our secure cloud, or host on-premises"),
+                Li("Anonymous: Our AI agents make feedback insightful, but untreaceable"),
+                Li("Secure: Your data is stored securely in the cloud or ", A("on-premises", href="/pricing")),
                 Li("Affordable: Start with a free report today"),
                 cls="features-list"
             ),
@@ -106,6 +106,7 @@ pricing_page = Container(
                 Li("Aggregated insights across departments"),
                 Li("Advanced analytics and reporting"),
                 Li("Dedicated support and training"),
+                Li("Hybrid cloud and on-premises hosting options"),
                 cls="pricing-features"
             ),
             P("Contact us for enterprise pricing and features"),
