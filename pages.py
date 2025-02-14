@@ -223,6 +223,8 @@ At Feedback to Me, we take your privacy seriously and are committed to protectin
 - Generating feedback reports
 - Processing payments
 - Service communications
+- Improving our processes and AI models
+- Enhancing service quality and user experience
 
 ### Legal Basis (GDPR Article 6)
 - Contract fulfillment for service provision
@@ -257,12 +259,13 @@ Under GDPR, you have the right to:
 
 ## Data Sharing
 
-We share data only with:
-- Essential service providers (e.g., payment processors)
-- When legally required
-- With your explicit consent
-
-We never sell your data to third parties.
+We maintain strict control over your data:
+- We never sell your data to third parties
+- Your feedback is only accessible by our internal team
+- Limited sharing only with:
+  - Essential service providers (e.g., payment processors)
+  - When legally required
+  - With your explicit consent
 
 ## Cookies & Tracking
 
@@ -378,7 +381,7 @@ def faq_page():
         },
         {
             "question": "What happens to my feedback data?",
-            "answer": "Your feedback data is securely stored and used solely to generate meaningful, actionable feedback reports. We do not share your data with third parties."
+            "answer": "Your feedback data is securely stored and used to generate meaningful, actionable feedback reports. We also use this data to improve our processes and AI models to enhance the service quality. However, we never sell your data or share it with third parties - your feedback will only ever be accessible by our internal team."
         },
         {
             "question": "How does the report generation work?",
