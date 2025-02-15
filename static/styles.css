@@ -295,6 +295,33 @@ a[href='/buy-credits'] button:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin: 1rem 0;
+}
+
+.stat-item {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-item h3 {
+  color: var(--nord10);
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.stat-item p {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--nord9);
+  margin: 0;
+}
+
 .qualities-checkboxes {
    margin: 1rem 0;
 }

@@ -1778,7 +1778,32 @@ def get_admin(request: Request):
     
     success = request.query_params.get('success')
     
+    # Get statistics
+    total_users = len(users())
+    total_processes = len(feedback_process_tb())
+    total_requests = len(feedback_request_tb())
+    total_submissions = len(feedback_submission_tb()) 
+    total_themes = len(feedback_themes_tb())
+    total_reports = len(feedback_process_tb("feedback_report IS NOT NULL"))
+
+    status_window = Article(
+        H2("System Status"),
+        Div(
+            Div(
+                Div(H3("Users"), P(f"{total_users}"), cls="stat-item"),
+                Div(H3("Processes"), P(f"{total_processes}"), cls="stat-item"),
+                Div(H3("Requests"), P(f"{total_requests}"), cls="stat-item"),
+                Div(H3("Submissions"), P(f"{total_submissions}"), cls="stat-item"), 
+                Div(H3("Themes"), P(f"{total_themes}"), cls="stat-item"),
+                Div(H3("Reports"), P(f"{total_reports}"), cls="stat-item"),
+                cls="stats-grid"
+            ),
+            cls="report-section"
+        )
+    )
+
     admin_page = Container(
+        status_window,
         H2("Admin Dashboard"),
         P("Welcome to the admin dashboard."),
         Div(P("Database uploaded successfully!", cls="success"), cls="alert") if success else None,
