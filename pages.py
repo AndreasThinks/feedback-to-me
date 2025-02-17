@@ -57,24 +57,38 @@ def dashboard_page(user):
         )
     )
 
+intro_paragraph = """Professional development shouldn't be a privilege. While top organizations have dedicated teams for feedback and growth, most professionals lack access to these valuable insights.
+
+Feedback to Me democratizes professional development with AI-powered 360° feedback. Our platform combines anonymous feedback collection with intelligent analysis to deliver actionable, personalized insights that help you grow—all while ensuring complete confidentiality."""
+
 landing_page = Container(
     Div(
-        H2("Welcome to Feedback to Me"),
-        P("360° feedback, made simple and powered by AI"),
-        A(Button("Get Started", href="/get-started", cls="btn-primary"), href='/get-started'),
-        P("Join now and create your first report for free!"),
+        H2("Unlock Your Professional Growth"),
+        P("AI-powered 360° feedback made simple"),
+        A(Button("Start Free", href="/get-started", cls="btn-primary"), href='/get-started'),
+        P("Create your first feedback report at no cost"),
         Div(
-            P("Professional development shouldn't be limited by traditional feedback costs. Our advanced AI transforms colleague insights into personalized growth recommendations, making expert development guidance accessible to everyone."),
-            H3("✨ What makes us different:"),
+            Div(intro_paragraph, cls='marked'),
+            Div(
+                Video(
+                    Source(src="/static/feedback-to-me.mp4", type="video/mp4"),
+                    controls=True,
+                    muted=False,
+                    loop=True,
+                    preload="auto"
+                ),
+                cls="video-embed"
+            ),
+            H3("Why Choose Feedback to Me"),
             Ul(
-                Li("Impactive: Personalised expert recommendations, bespoke to your needs"),
-                Li("Anonymous: Our AI agents make feedback insightful, but untreaceable"),
-                Li("Secure: Your data is stored securely in the cloud or ", A("on-premises", href="/pricing")),
-                Li("Affordable: Start with a free report today"),
-                Li("Open source: Our code is ", A("open and transparent", href="https://github.com/AndreasThinks/feedback-to-me")),
+                Li("Smart Insights: AI-driven analysis for actionable recommendations"),
+                Li("Complete Privacy: Anonymous feedback collection and secure processing"),
+                Li("Enterprise Ready: Cloud-based or ", A("on-premises deployment", href="/pricing"), ""),
+                Li("Accessible: Start with a free report, scale as you grow"),
+                Li("Transparent: Fully ", A("open source", href="https://github.com/AndreasThinks/feedback-to-me"), " platform"),
                 cls="features-list"
             ),
-            P("Get valuable insights about your performance and growth areas, all while maintaining complete confidentiality."),
+            P("Get the insights you need to excel, with the privacy everyone deserves."),
             cls="content-section"
         ),
         cls="landing-page"

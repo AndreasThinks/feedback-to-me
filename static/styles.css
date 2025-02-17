@@ -139,46 +139,50 @@ progress::-moz-progress-bar {
 .landing-page {
    background: linear-gradient(135deg, #f1f3f5, #e9ecef);
    color: #212529;
-   padding: 4rem 2rem;
+   padding: min(4rem, 8vw) min(2rem, 4vw);
    text-align: center;
    border-radius: 12px;
    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-   max-width: 800px;
+   max-width: 1000px;
    margin: 2rem auto;
+   overflow: hidden;
 }
 
 .landing-page h2 {
-   font-size: 2.8rem;
+   font-size: clamp(2rem, 5vw, 2.8rem);
    margin-bottom: 1.5rem;
    color: var(--nord10);
    letter-spacing: -0.5px;
+   line-height: 1.2;
 }
 
 .landing-page p {
-   font-size: 1.25rem;
-   margin: 1.5rem 0;
+   font-size: clamp(1rem, 3vw, 1.25rem);
+   margin: 1.5rem auto;
    color: #495057;
    line-height: 1.6;
+   max-width: 800px;
 }
 
 .landing-page .content-section {
    text-align: left;
-   background: rgba(255, 255, 255, 0.9);
-   padding: 2.5rem;
+   background: rgba(255, 255, 255, 0.95);
+   padding: min(2.5rem, 6vw);
    border-radius: 12px;
    margin: 2.5rem auto;
-   max-width: 700px;
-   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+   max-width: 900px;
+   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 .landing-page .content-section h3 {
    color: var(--nord10);
-   font-size: 1.4rem;
+   font-size: clamp(1.2rem, 4vw, 1.4rem);
    margin: 1.5rem 0 1rem;
+   font-weight: 600;
 }
 
 .landing-page .content-section p {
-   font-size: 1.15rem;
+   font-size: clamp(1rem, 3vw, 1.15rem);
    line-height: 1.6;
    margin: 1rem 0;
    color: #495057;
@@ -187,17 +191,21 @@ progress::-moz-progress-bar {
 .landing-page .features-list {
    list-style: none !important;
    padding: 0;
-   margin: 1.5rem 0;
+   margin: 2rem 0;
+   display: grid;
+   gap: 1.25rem;
 }
 
 .landing-page .features-list li {
-   margin: 1rem 0;
-   padding-left: 1.75rem;
+   margin: 0;
+   padding-left: 2rem;
    position: relative;
-   font-size: 1.1rem;
+   font-size: clamp(0.95rem, 2.5vw, 1.1rem);
    color: #495057;
    line-height: 1.5;
    list-style-type: none !important;
+   display: flex;
+   align-items: flex-start;
 }
 
 .landing-page .features-list li:before {
@@ -206,24 +214,54 @@ progress::-moz-progress-bar {
    font-weight: bold;
    position: absolute;
    left: 0;
+   font-size: 1.1em;
+   line-height: 1.5;
 }
 
 .landing-page .btn-primary {
-   padding: 1rem 2rem;
-   background-color: var(--nord8);
+   padding: clamp(0.875rem, 2.5vw, 1rem) clamp(1.5rem, 4vw, 2rem);
+   background: linear-gradient(135deg, var(--nord8), var(--nord9));
    border: none;
    border-radius: 8px;
    color: #ffffff;
-   font-size: 1.2rem;
+   font-size: clamp(1rem, 3vw, 1.2rem);
+   font-weight: 600;
    cursor: pointer;
    transition: all 0.3s ease;
-   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+   margin: 1rem 0;
+   display: inline-block;
+   text-decoration: none;
 }
 
 .landing-page .btn-primary:hover {
-   background-color: var(--nord9);
+   background: linear-gradient(135deg, var(--nord9), var(--nord10));
    transform: translateY(-2px);
-   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+   .landing-page {
+      margin: 1rem;
+   }
+   
+   .landing-page .content-section {
+      padding: 1.5rem;
+      margin: 1.5rem auto;
+   }
+   
+   .landing-page .features-list {
+      gap: 1rem;
+   }
+   
+   .landing-page .features-list li {
+      padding-left: 1.75rem;
+   }
+   
+   .landing-page .btn-primary {
+      width: 100%;
+      max-width: 300px;
+   }
 }
 
 .footer {
@@ -567,21 +605,45 @@ a[href='/buy-credits'] button:hover {
   object-fit: cover;
 }
 
+.landing-page .video-embed {
+  margin: 2.5rem auto;
+  padding: 0;
+  max-width: 800px;
+}
+
+.landing-page .video-embed video {
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.landing-page .video-embed video:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
 @media (max-width: 768px) {
   .video-embed {
-    margin: 0 auto 2rem;
+    margin: 2rem auto;
     padding: 0 0.5rem;
   }
   
   .video-embed video {
     border-radius: 8px;
   }
+  
+  .landing-page .video-embed {
+    margin: 1.5rem auto;
+    padding: 0;
+  }
 }
 
 /* How It Works page styles */
 .how-it-works-page {
   width: 100%;
-  padding: 2rem;
+  max-width: 1000px;
+  margin: 2rem auto;
+  padding: min(4rem, 8vw) min(2rem, 4vw);
   background: linear-gradient(135deg, #f1f3f5, #e9ecef);
   border-radius: 12px;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
@@ -681,7 +743,27 @@ a[href='/buy-credits'] button:hover {
   }
 
   .how-it-works-page {
+    margin: 1rem;
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .how-it-works-page {
+    margin: 0.5rem;
     padding: 1rem;
+  }
+  
+  .process-step {
+    padding: 1rem;
+  }
+  
+  .process-content h3 {
+    font-size: 1.4rem;
+  }
+  
+  .process-content .features-list li {
+    font-size: 0.95rem;
   }
 }
 
