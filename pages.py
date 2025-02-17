@@ -67,11 +67,11 @@ landing_page = Container(
             P("Professional development shouldn't be limited by traditional feedback costs. Our advanced AI transforms colleague insights into personalized growth recommendations, making expert development guidance accessible to everyone."),
             H3("✨ What makes us different:"),
             Ul(
-                Li("Fast: Get started with just a few email addresses"),
                 Li("Impactive: Personalised expert recommendations, bespoke to your needs"),
                 Li("Anonymous: Our AI agents make feedback insightful, but untreaceable"),
                 Li("Secure: Your data is stored securely in the cloud or ", A("on-premises", href="/pricing")),
                 Li("Affordable: Start with a free report today"),
+                Li("Open source: Our code is ", A("open and transparent", href="https://github.com/AndreasThinks/feedback-to-me")),
                 cls="features-list"
             ),
             P("Get valuable insights about your performance and growth areas, all while maintaining complete confidentiality."),
