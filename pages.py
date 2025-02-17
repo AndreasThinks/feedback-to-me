@@ -124,7 +124,7 @@ pricing_page = Container(
                 cls="pricing-features"
             ),
             P("Contact us for enterprise pricing and features"),
-            A(Button("Contact Sales", href="mailto:sales@feedback-to.me"), href="mailto:sales@feedback-to.me", cls="pricing-cta"),
+            A(Button("Contact Sales", href="mailto:contact@feedback-to.me"), href="mailto:contact@feedback-to.me", cls="pricing-cta"),
             cls="pricing-tier business"
         ),
         cls="pricing-container"
@@ -352,9 +352,9 @@ We'll notify you of significant policy changes via email and website notices.
 ## Contact Us
 
 For privacy inquiries or to exercise your rights:
-- Email: privacy@feedback-to.me
-- Address: [Company Address]
-- Data Protection Officer: dpo@feedback-to.me
+- Email: contact@feedback-to.me
+- Address: [Apologies, awaiting!]
+- Data Protection Officer: contact@feedback-to.me
 
 Last updated: February 2025
     """, cls="marked"),
