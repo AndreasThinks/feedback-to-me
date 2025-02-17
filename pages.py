@@ -455,16 +455,12 @@ def faq_page():
             "answer": "Yes, we employ industry-standard security practices, including encryption, to ensure that your data remains safe and confidential."
         },
         {
-            "question": "Can I update or change my feedback?",
-            "answer": "Once feedback is submitted, it is used to generate a report. For any modifications, please contact our support team."
-        },
-        {
             "question": "What if I experience technical issues?",
-            "answer": "Our support team is available to assist you. Please reach out through our contact page if you encounter any problems."
+            "answer": "Our support team is available to assist you. Please [reach out to our team](mailto:contact@feedback-to.me) if you encounter any problems."
         },
         {
-            "question": "Are there any costs associated?",
-            "answer": "Pricing details will be available on our pricing page."
+            "question": "Who built Feedback to Me?",
+            "answer": "Feedback to Me was built by [Andreas Varotsis](https://andreasthinks.me/)"
         }
     ]
     faq_content = Div(
@@ -477,7 +473,7 @@ def faq_page():
                 ),
                 Div(
                     item["answer"],
-                    cls="faq-answer",
+                    cls="marked faq-answer",
                     style="display:none;"
                 )
             )
