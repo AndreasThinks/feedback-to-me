@@ -63,8 +63,8 @@ Feedback to Me democratizes professional development with AI-powered 360° feedb
 
 landing_page = Container(
     Div(
-        H2("Unlock Your Professional Growth"),
-        P("AI-powered 360° feedback made simple"),
+        H2("Peer-to-peer feedback, reimagined"),
+        P("Your personal 360° feedback team, powered by AI"),
         A(Button("Start Free", href="/get-started", cls="btn-primary"), href='/get-started'),
         P("Create your first feedback report at no cost"),
         Div(
@@ -83,9 +83,9 @@ landing_page = Container(
             Ul(
                 Li("Smart Insights: AI-driven analysis for actionable recommendations"),
                 Li("Complete Privacy: Anonymous feedback collection and secure processing"),
-                Li("Enterprise Ready: Cloud-based or ", A("on-premises deployment", href="/pricing"), ""),
+                Li("Enterprise Ready: ", A("Cloud-based or on-premises deployments available", href="/pricing", style='margin-left: 5px;')),
                 Li("Accessible: Start with a free report, scale as you grow"),
-                Li("Transparent: Fully ", A("open source", href="https://github.com/AndreasThinks/feedback-to-me"), " platform"),
+                Li("Open source: ", A("Open code, MIT licensed", href="https://github.com/AndreasThinks/feedback-to-me", style='margin-left: 5px;')),
                 cls="features-list"
             ),
             P("Get the insights you need to excel, with the privacy everyone deserves."),
