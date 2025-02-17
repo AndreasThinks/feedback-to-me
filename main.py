@@ -1446,7 +1446,7 @@ def get_feedback_form(request_token: str):
     introduction_text = Div(f"""{requestor_name} is completing a 360 feedback process through [Feedback to Me](https://feedback-to.me), and would like your help! """,
     cls='marked')
 
-    process_explanation = Div(f"""Once you submit your feedback, we'll anonymise it, and compile it into a report for {requestor_name}. You can learn more about Feedback to Me, and how we handle your data and generate feedback [on our website.]({BASE_URL})""",
+    process_explanation = Div(f"""Once you submit your feedback, we'll anonymise it, and compile it into a report for {requestor_name}. You can learn more about Feedback to Me, and how we handle your data and generate feedback [on our website.](https://feedback-to.me/)""",
     cls='marked')
 
     checkbox_text = Div(f"Please rate {requestor_name} on the following qualities:", cls='marked')   
