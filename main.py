@@ -3,6 +3,7 @@ from fasthtml.common import *
 from datetime import datetime, timedelta
 dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
 beta_mode = os.environ.get("beta_model", "true").lower() == "true"
+import random
 
 import secrets, os
 import bcrypt
@@ -1451,7 +1452,10 @@ def get_feedback_form(request_token: str):
 
     checkbox_text = Div(f"Please rate {requestor_name} on the following qualities:", cls='marked')   
 
-    textbox_text = Div(f"Please write any additional feedback you have for {requestor_name}. Don't worry, we'll make sure it's all anonymous!", cls='marked')
+    textbox_text = Div(f"""Please take a few minutes to provide specific feedback around your experience working with {requestor_name}. Try and focus your comments on specific behaviors and their impact - be constructive and offer specific examples.
+                       Remember, your feedback will be totally anonymous: our AI models will review it and remove any identifiable details - so we'd encourage you to be as honest and open as possible.
+                       """, cls='marked')
+
 
     onward_request_id = request_token
     
@@ -1468,7 +1472,7 @@ def get_feedback_form(request_token: str):
             *[(
                    Label(q, cls="range-label"), 
                    Div(
-                       Input(type="range", min=1, max=8, value=4, name=f"rating_{q.lower()}", id=f"rating_{q.lower()}"),
+                       Input(type="range", min=1, max=8, value=random.randint(1,8), name=f"rating_{q.lower()}", id=f"rating_{q.lower()}"),
                        cls="range-wrapper"
                    )
               ) for q in qualities],
