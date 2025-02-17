@@ -333,6 +333,50 @@ a[href='/buy-credits'] button:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
+/* Process card styles */
+.report-section article {
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 0.75rem 2rem;
+  margin: 0.75rem 0;
+  transition: all 0.2s ease;
+}
+
+.report-section article:hover {
+  background: #f8f9fa;
+}
+
+.process-line {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+}
+
+.process-title {
+  font-weight: 600;
+  color: var(--nord10);
+  flex: 1;
+}
+
+.process-date {
+  color: #868e96;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.process-link {
+  color: var(--nord8);
+  text-decoration: none;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.process-link:hover {
+  color: var(--nord9);
+  text-decoration: underline;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

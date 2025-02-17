@@ -803,12 +803,27 @@ def get(req):
     generatable_html = []
     completed_html = []
     for p in processes:
+        try:
+            created_at_dt = datetime.fromisoformat(p.created_at)
+        except ValueError:
+            created_at_dt = datetime.strptime(p.created_at, "%Y-%m-%d %H:%M:%S")
+        formatted_date = created_at_dt.strftime("%B %d, %Y %H:%M")
+        
+        process_article = Article(
+            Div(
+                Span(f"{p.process_title}", cls="process-title"),
+                Span(f"Created: {formatted_date}", cls="process-date"),
+                A("View Details", href=f"/feedback-process/{p.id}", cls="process-link"),
+                cls="process-line"
+            )
+        )
+        
         if p.feedback_report:
-            completed_html.append(p)
+            completed_html.append(process_article)
         elif p.feedback_count >= p.min_submissions_required:
-            generatable_html.append(p)
+            generatable_html.append(process_article)
         else:
-            active_html.append(p)
+            active_html.append(process_article)
 
     dashboard_page_active = Container(
         H2(f"Hi {user.first_name}!"),
@@ -822,24 +837,18 @@ def get(req):
         Div(
             H3("Collecting responses"),
             *active_html or P("No active feedback collection processes.", cls="text-muted"),
-        cls="report-section"),
+            cls="report-section"
+        ),
         Div(
             H3("Report ready to generate"),
-            *[
-                Article(
-                    Div(
-                        H3(f"{p.process_title} {' (Complete)' if p.feedback_report else ' (In Progress)'}"),
-                        cls="process-header"
-                    ),
-                    P(f"Created: {datetime.fromisoformat(p.created_at).strftime('%B %d, %Y %H:%M')}"),
-                    A(Button("Generate Report"), href=f"/feedback-process/{p.id}", cls="primary")
-                ) for p in generatable_html
-            ] or P("No feedback ready for review.", cls="text-muted"),
-        cls="report-section"),
+            *generatable_html or P("No feedback ready for review.", cls="text-muted"),
+            cls="report-section"
+        ),
         Div(
             H3("Completed reports"),
             *completed_html or P("No completed feedback reports.", cls="text-muted"),
-        cls="report-section")
+            cls="report-section"
+        )
     )
     return generate_themed_page(dashboard_page_active, auth=auth, page_title="Your Dashboard")
 
