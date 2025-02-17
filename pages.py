@@ -152,7 +152,17 @@ footer_bar = Footer(A("© 2025 Feedback to Me"), href=BASE_URL, cls='footer')
 
 how_it_works_page = Container(
     Div(
-        H2("Expert insights in 3 simple steps"),
+        Div(
+            Video(
+                Source(src="/static/feedback-to-me.mp4", type="video/mp4"),
+                controls=True,
+                muted=False,
+                loop=True,
+                preload="auto"
+            ),
+            cls="video-embed"
+        ),
+        H2("Expert insights in 3 simple steps", style=f"font-size: 2.8rem; color: var(--nord10); text-align: center; margin: 2rem 0 3rem; letter-spacing: -0.5px;"),
         Div(
             # Step 1
             Div(

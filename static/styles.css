@@ -550,6 +550,34 @@ a[href='/buy-credits'] button:hover {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
+/* Video embed styles */
+.video-embed {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto 3rem;
+  padding: 0 1rem;
+}
+
+.video-embed video {
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  background: #ffffff;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .video-embed {
+    margin: 0 auto 2rem;
+    padding: 0 0.5rem;
+  }
+  
+  .video-embed video {
+    border-radius: 8px;
+  }
+}
+
 /* How It Works page styles */
 .how-it-works-page {
   width: 100%;
