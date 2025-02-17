@@ -2,7 +2,7 @@
 from fasthtml.common import *
 from datetime import datetime, timedelta
 dev_mode = os.environ.get("DEV_MODE", "false").lower() == "true"
-alpha_mode = os.environ.get("ALPHA_MODE", "true").lower() == "true"
+beta_mode = os.environ.get("beta_model", "true").lower() == "true"
 
 import secrets, os
 import bcrypt

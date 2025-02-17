@@ -4,9 +4,11 @@ from fasthtml.common import *
 from config import BASE_URL, STARTING_CREDITS, COST_PER_CREDIT_USD
 from models import users
 
+
 def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
     """Generate a themed page with appropriate navigation bar based on auth status"""
-    from main import alpha_mode
+    from main import beta_mode
+
     
     nav_bar = navigation_bar_logged_out
     if auth:
@@ -15,17 +17,11 @@ def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
     else:
         nav_bar = navigation_bar_logged_out
 
-    # Add alpha badge to title if in alpha mode
-    if alpha_mode:
-        page_title = f"{page_title} " "ALPHA"
-
-    # Create alpha banner if in alpha mode
-    alpha_elements = []
-    if alpha_mode:
-        alpha_elements.extend([
-            Div("🚧 This site is in alpha testing - please don't use it with sensitive data 🚧", cls="alpha-banner"),
+    beta_elements = []
+    if beta_mode:
+        beta_elements.extend([
             Div(
-                "⚠️ Alpha Testing Notice: This is an early version of Feedback to Me. While functional, it may contain bugs or undergo significant changes. We recommend not using it for critical feedback processes at this time.",
+                "⚠️ Beta Testing Notice: This is an early version of Feedback to Me. While functional, it may contain bugs or undergo significant changes. We recommend not using it for critical feedback processes at this time.",
                 cls="alpha-warning"
             ) if "landing-page" in str(page_body) else None
         ])
@@ -34,7 +30,7 @@ def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
     Favicon('static/favicon.ico', dark_icon='static/favicon.ico'),
     Container(
         nav_bar,
-        *[el for el in alpha_elements if el is not None],
+        *[el for el in beta_elements if el is not None],
         Div(page_body, id="main-content"),
         footer_bar
     ))
@@ -468,7 +464,7 @@ def faq_page():
         },
         {
             "question": "Are there any costs associated?",
-            "answer": "During our alpha testing phase, the service is free. Future pricing details will be available on our pricing page."
+            "answer": "Pricing details will be available on our pricing page."
         }
     ]
     faq_content = Div(
