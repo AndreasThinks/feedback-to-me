@@ -611,6 +611,22 @@ a[href='/buy-credits'] button:hover {
   align-items: center;
 }
 
+.process-video {
+  width: 100%;
+  max-width: 600px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .process-video {
+    max-width: 100%;
+  }
+}
+
 .process-content {
   flex: 1;
   padding-right: 2rem;

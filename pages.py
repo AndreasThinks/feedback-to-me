@@ -167,8 +167,14 @@ how_it_works_page = Container(
             # Step 1
             Div(
                 Div(
-                    Img(src="static/process_1.png", alt="Setup Process", 
-                        style="width: 100%; height: auto; max-width: 600px; object-fit: contain;"),
+                    Video(
+                        Source(src="/static/process_1.mp4", type="video/mp4"),
+                        controls=True,
+                        muted=True,
+                        loop=True,
+                        preload="false",
+                        cls="process-video"
+                    ),
                     cls="process-image"
                 ),
                 Div(
@@ -187,8 +193,14 @@ how_it_works_page = Container(
             # Step 2
             Div(
                 Div(
-                    Img(src="static/process_2.png", alt="Feedback Collection",
-                        style="width: 100%; height: auto; max-width: 600px; object-fit: contain;"),
+                    Video(
+                        Source(src="/static/process_2.mp4", type="video/mp4"),
+                        controls=True,
+                        muted=True,
+                        loop=True,
+                        preload="false",
+                        cls="process-video"
+                    ),
                     cls="process-image"
                 ),
                 Div(
@@ -207,8 +219,14 @@ how_it_works_page = Container(
             # Step 3
             Div(
                 Div(
-                    Img(src="static/process_3.png", alt="AI Analysis",
-                        style="width: 100%; height: auto; max-width: 600px; object-fit: contain;"),
+                    Video(
+                        Source(src="/static/process_3.mp4", type="video/mp4"),
+                        controls=True,
+                        muted=True,
+                        loop=True,
+                        preload="false",
+                        cls="process-video"
+                    ),
                     cls="process-image"
                 ),
                 Div(
