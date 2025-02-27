@@ -374,15 +374,38 @@ login_form = Form(
             hx_post="/login", hx_target="#login-intro-text", id='login-form'
     )
 
+profile_edit_form = Form(
+            Div(
+                Input(name="first_name", type="text", placeholder="First Name *", required=True),
+                Div(id="first-name-validation", role="alert")
+            ),
+            Div(
+                Input(name="role", type="text", placeholder="Role (e.g. Software Engineer)", required=False),
+                Div(id="role-validation", role="alert")
+            ),
+            Div(
+                Input(name="company", type="text", placeholder="Company", required=False),
+                Div(id="company-validation", role="alert")
+            ),
+            Div(
+                Input(name="team", type="text", placeholder="Team", required=False),
+                Div(id="team-validation", role="alert")
+            ),
+            Button("Save Profile", type="submit", cls="primary", id="save-profile-btn"),
+            P(
+                "By updating your profile, you consent to our processing of your data as described in our ",
+                A("Privacy Policy", href="/privacy-policy"),
+                ".",
+                cls="privacy-consent"
+            ),
+        action="/update-profile", method="post",
+        cls="profile-form")
+
 error_message = Div(
     I("We couldn't log you in... Are your details are correct?"), cls='login-error-message'
 )
 
 register_form = Form(
-            Div(
-                Input(name="first_name", type="text", placeholder="First Name *", required=True),
-                Div(id="first-name-validation", role="alert")
-            ),
             Div(
                 Input(name="email", type="email", placeholder="Email *", required=True,
                       hx_post="/validate-registration-email",
@@ -410,10 +433,6 @@ register_form = Form(
                 Div(id="pwd-match-validation", role="alert")
             ),
             Button("Register", type="submit", cls="secondary", id="register-btn"),
-            P("The below is only helpful if you're taking part in a corporate process"),
-            Div(Input(name="role", type="text", placeholder="Role (Optional, e.g. Software Engineer)", required=False)),
-            Div(Input(name="company", type="text", placeholder="Company (Optional)", required=False)),
-            Div(Input(name="team", type="text", placeholder="Team (Optional)", required=False)),
             P(
                 "By registering, you consent to our processing of your data as described in our ",
                 A("Privacy Policy", href="/privacy-policy"),

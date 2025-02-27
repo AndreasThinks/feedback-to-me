@@ -385,6 +385,12 @@ def post_login(login: Login, request: Request, sess):
 
     sess["auth"] = u.id
     logger.info(f"User successfully logged in: {login.email}")
+    
+    # Check if profile is completed
+    if not u.first_name:
+        # Redirect to profile edit page if first name is not set
+        return Redirect("/edit-profile")
+    
     return Redirect("/dashboard")
 
 @rt("/logout")
@@ -534,6 +540,72 @@ def get(req):
     logger.debug("Serving registration form")
     return register_form
 
+@app.get("/edit-profile")
+def get_edit_profile(req, sess):
+    auth = req.scope.get("auth")
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    
+    user = users("id=?", (auth,))[0]
+    
+    # Pre-fill the form with existing user data
+    from pages import profile_edit_form
+    
+    # Create a copy of the form with pre-filled values
+    form = profile_edit_form
+    
+    # Find the first_name input and set its value
+    for child in form.children:
+        if hasattr(child, 'children'):
+            for input_div in child.children:
+                if hasattr(input_div, 'name') and input_div.name == 'first_name':
+                    input_div.value = user.first_name
+                elif hasattr(input_div, 'name') and input_div.name == 'role':
+                    input_div.value = user.role
+                elif hasattr(input_div, 'name') and input_div.name == 'company':
+                    input_div.value = user.company
+                elif hasattr(input_div, 'name') and input_div.name == 'team':
+                    input_div.value = user.team
+    
+    # Add a message if this is a first-time login
+    message = None
+    if not user.first_name:
+        message = Div(
+            P("Please complete your profile before proceeding. We need at least your name to continue."),
+            cls="profile-message"
+        )
+    
+    return generate_themed_page(
+        Container(
+            H2("Edit Your Profile"),
+            message,
+            form
+        ),
+        auth=auth,
+        page_title="Edit Profile"
+    )
+
+@app.post("/update-profile")
+def post_update_profile(first_name: str, role: str = "", company: str = "", team: str = "", sess=None):
+    auth = sess.get("auth")
+    if not auth:
+        return RedirectResponse("/login", status_code=303)
+    
+    user = users("id=?", (auth,))[0]
+    
+    # Update user data
+    user.first_name = first_name
+    user.role = role
+    user.company = company
+    user.team = team
+    user.profile_completed = True
+    
+    users.update(user)
+    
+    logger.info(f"Profile updated for user: {user.email}")
+    
+    return RedirectResponse("/dashboard", status_code=303)
+
 # -----------------------
 # Routes: Validation
 # -----------------------
@@ -613,7 +685,7 @@ def validate_email_list(emails: str):
 # -----------------------
 @limiter.limit("10/hour")
 @app.post("/register-new-user")
-def post_register(email: str, first_name:str, role: str, company: str, team: str, pwd: str, pwd_confirm: str, sess, request: Request):
+def post_register(email: str, pwd: str, pwd_confirm: str, sess, request: Request):
     logger.debug(f"Registration attempt for email: {email}")
     if "auth" in sess:
         logger.debug("Clearing existing session auth")
@@ -638,15 +710,16 @@ def post_register(email: str, first_name:str, role: str, company: str, team: str
     
     user_data = {
         "id": secrets.token_hex(16),
-        "first_name": first_name,
+        "first_name": "",  # Empty first name to be filled in later
         "email": email,
-        "role": role,
-        "company": company,
-        "team": team,
+        "role": "",  # Empty role to be filled in later
+        "company": "",  # Empty company to be filled in later
+        "team": "",  # Empty team to be filled in later
         "created_at": datetime.now(),
         "pwd": bcrypt.hashpw(pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
         "is_confirmed": False,
-        "credits": int(STARTING_CREDITS)
+        "credits": int(STARTING_CREDITS),
+        "profile_completed": False  # New field to track if profile is completed
     }
     try:
         existing = users[email]
@@ -671,7 +744,7 @@ def post_register(email: str, first_name:str, role: str, company: str, team: str
             users.update(new_user)
         else:
             # Send them a confirmation link
-            send_confirmation_email(email, token, first_name, company)
+            send_confirmation_email(email, token, "", "")
 
     return Titled(
         "Check Your Email",

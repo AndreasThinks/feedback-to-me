@@ -23,6 +23,7 @@ class User:
     pwd: str
     is_confirmed: bool = False
     is_admin: bool = False
+    profile_completed: bool = False
     credits: int = 3  # New users start with 3 free credits
 
 users = db.create(User, pk="email")  # Use email as primary key for simpler login
