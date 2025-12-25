@@ -118,4 +118,5 @@ beforeware = Beforeware(auth_before, skip=[r'/',
                                             r'/stripe-webhook',
                                             r'/send-reset-email',
                                             r'/reset-password/.*',
+                                            r'/auth/.*',  # OAuth routes
                                                   r'/static/.*'])

@@ -24,8 +24,10 @@ class User:
     is_confirmed: bool = False
     is_admin: bool = False
     credits: int = 3  # New users start with 3 free credits
+    oauth_provider: Optional[str] = None  # 'google', 'github', etc.
+    oauth_id: Optional[str] = None        # Provider's unique user ID
 
-users = db.create(User, pk="email")  # Use email as primary key for simpler login
+users = db.create(User, pk="email", transform=True)  # Use email as primary key for simpler login
 
 # FeedbackProcess table: tracks the overall feedback collection process
 

@@ -26,5 +26,18 @@ MAGIC_LINK_EXPIRY_DAYS = int(os.getenv("MAGIC_LINK_EXPIRY_DAYS", "30"))
 FEEDBACK_QUALITIES = os.getenv("FEEDBACK_QUALITIES", "Communication,Leadership,Technical Skills,Teamwork,Problem Solving").split(",")
 
 BASE_URL =  os.getenv("BASE_URL", "feedback-to.me")
-GEMINI_API_KEY=os.getenv("GEMINI_API_KEY", "gemini_key")
 
+# OpenRouter Configuration
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "your-openrouter-key")
+
+# Primary LLM models (via OpenRouter)
+LLM_MODEL_FAST = os.getenv("LLM_MODEL_FAST", "google/gemini-2.0-flash-001")
+LLM_MODEL_REASONING = os.getenv("LLM_MODEL_REASONING", "google/gemini-2.0-flash-thinking-exp")
+
+# Fallback models (used if primary fails)
+LLM_MODEL_FAST_FALLBACK = os.getenv("LLM_MODEL_FAST_FALLBACK", "anthropic/claude-3-5-haiku-latest")
+LLM_MODEL_REASONING_FALLBACK = os.getenv("LLM_MODEL_REASONING_FALLBACK", "anthropic/claude-sonnet-4-20250514")
+
+# OAuth Configuration
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")

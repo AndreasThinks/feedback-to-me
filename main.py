@@ -25,8 +25,11 @@ from pages import how_it_works_page, generate_themed_page, faq_page, error_messa
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
-from config import MINIMUM_SUBMISSIONS_REQUIRED, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS, BASE_URL
+from config import MINIMUM_SUBMISSIONS_REQUIRED, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS, BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 from utils import beforeware, validate_email_format, validate_password_strength, validate_passwords_match
+
+# OAuth imports
+from fasthtml.oauth import GoogleAppClient, OAuth as OAuthHelper
 
 import requests
 import math
@@ -80,6 +83,24 @@ limiter = Limiter(key_func=get_remote_address)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --------------------
+# OAuth Setup
+# --------------------
+
+# Initialize Google OAuth client if credentials are configured
+google_client = None
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    try:
+        google_client = GoogleAppClient(
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+            code="",  # Will be filled in during callback
+            scope="openid email profile"
+        )
+        logger.info("Google OAuth client initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize Google OAuth client: {str(e)}")
 
 # --------------------
 # Helper Functions
@@ -394,6 +415,95 @@ def get_logout(sess):
         del sess["auth"]
         logger.info(f"User logged out: {auth_id}")
     return RedirectResponse("/", status_code=303)
+
+# -----------------------
+# OAuth Routes
+# -----------------------
+
+@app.get("/auth/google")
+def google_login(req):
+    """Initiate Google OAuth flow"""
+    if not google_client:
+        logger.error("Google OAuth not configured")
+        return Titled("OAuth Error", P("Google OAuth is not configured. Please contact the administrator."))
+    
+    # Build redirect URI
+    redirect_uri = generate_external_link("auth/callback")
+    
+    # Generate login link
+    login_link = google_client.login_link(redirect_uri=redirect_uri)
+    logger.info(f"Redirecting to Google OAuth: {login_link}")
+    
+    return RedirectResponse(login_link, status_code=303)
+
+@app.get("/auth/callback")
+def google_callback(code: str, req, sess):
+    """Handle Google OAuth callback"""
+    if not google_client:
+        logger.error("Google OAuth not configured")
+        return Titled("OAuth Error", P("Google OAuth is not configured."))
+    
+    try:
+        # Build redirect URI
+        redirect_uri = generate_external_link("auth/callback")
+        
+        # Exchange code for token and get user info
+        # Update the client with the authorization code
+        google_client.code = code
+        user_info = google_client.retr_info(code=code, redirect_uri=redirect_uri)
+        
+        logger.info(f"OAuth callback received user info: {user_info}")
+        
+        # Extract user information
+        email = user_info.get("email")
+        given_name = user_info.get("given_name", "")
+        google_id = user_info.get("sub")  # Google's unique user ID
+        
+        if not email or not google_id:
+            logger.error("Failed to get email or ID from Google OAuth")
+            return Titled("OAuth Error", P("Failed to retrieve user information from Google."))
+        
+        # Check if user exists
+        try:
+            user = users[email]
+            logger.info(f"Existing user logging in via OAuth: {email}")
+            
+            # Update OAuth fields if not set
+            if not user.oauth_provider or not user.oauth_id:
+                user.oauth_provider = "google"
+                user.oauth_id = google_id
+                users.update(user)
+                logger.info(f"Linked Google OAuth to existing account: {email}")
+            
+        except Exception:
+            # Create new user
+            logger.info(f"Creating new user via OAuth: {email}")
+            user = users.insert({
+                "id": secrets.token_hex(16),
+                "first_name": given_name or email.split("@")[0],
+                "email": email,
+                "role": None,
+                "company": None,
+                "team": None,
+                "created_at": datetime.now(),
+                "pwd": "",  # No password for OAuth users
+                "is_confirmed": True,  # OAuth users are auto-confirmed
+                "credits": int(STARTING_CREDITS),
+                "oauth_provider": "google",
+                "oauth_id": google_id
+            })
+        
+        # Log the user in
+        sess["auth"] = user.id
+        logger.info(f"User logged in via Google OAuth: {email}")
+        
+        return RedirectResponse("/dashboard", status_code=303)
+        
+    except Exception as e:
+        logger.error(f"Error during Google OAuth callback: {str(e)}")
+        return Titled("OAuth Error", 
+                     P("An error occurred during Google sign-in. Please try again."),
+                     P(f"Error details: {str(e)}"))
 
 @app.get("/forgot-password")
 def get_forgot_password():
