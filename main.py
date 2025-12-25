@@ -96,7 +96,7 @@ if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
             client_id=GOOGLE_CLIENT_ID,
             client_secret=GOOGLE_CLIENT_SECRET,
             code="",  # Will be filled in during callback
-            scope="openid email profile"
+            scope="openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
         )
         logger.info("Google OAuth client initialized successfully")
     except Exception as e:
