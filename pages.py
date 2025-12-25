@@ -27,7 +27,6 @@ def generate_themed_page(page_body, auth=None, page_title="Feedback to Me"):
         ])
 
     return (Title(page_title),
-    Favicon('static/favicon.ico', dark_icon='static/favicon.ico'),
     Container(
         nav_bar,
         *[el for el in beta_elements if el is not None],

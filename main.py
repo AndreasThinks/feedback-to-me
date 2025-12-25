@@ -48,7 +48,8 @@ app, rt = fast_app(
     before=beforeware,
     hdrs=(
         MarkdownJS(),  # Allows rendering markdown in feedback text, if needed.
-        Link(rel='stylesheet', href='/static/styles.css', type='text/css')
+        Link(rel='stylesheet', href='/static/styles.css', type='text/css'),
+        Favicon('static/favicon.ico', 'static/favicon.ico')
     ),
     htmlkw={'data-theme':'light'},
     exception_handlers={HTTPException: lambda req, exc: Response(content="", status_code=exc.status_code, headers=exc.headers)}
