@@ -928,6 +928,49 @@ a[href='/buy-credits'] button:hover {
   font-size: small;
 }
 
+/* Google OAuth button styles */
+.google-oauth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 300px;
+  padding: 0.75rem 1.5rem;
+  background-color: #ffffff;
+  color: #495057;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  position: relative;
+}
+
+.google-oauth-btn:hover {
+  background-color: #f8f9fa;
+  border-color: var(--nord8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.google-oauth-btn::before {
+  content: "G";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 0.75rem;
+  background: linear-gradient(135deg, #4285f4, #34a853, #fbbc05, #ea4335);
+  background-size: 200% 200%;
+  color: #ffffff;
+  font-weight: bold;
+  border-radius: 3px;
+  font-size: 0.9rem;
+}
+
 /* Feedback count message styles */
 #feedback-count-msg {
   margin: 1rem 0;

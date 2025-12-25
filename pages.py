@@ -363,16 +363,45 @@ login_or_register_page = Container(
         Button("Register", hx_get="/register", hx_target="#login-register-buttons"),
         id="login-register-buttons",
         style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"
+    ),
+    Div(
+        Div(style="margin: 30px 0 20px; text-align: center; color: var(--nord3); position: relative;",
+            children=[
+                Div(style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--nord3);"),
+                Span("OR", style="position: relative; background: var(--nord6); padding: 0 20px;")
+            ]
+        ),
+        A(
+            Button("Sign in with Google", cls="google-oauth-btn"),
+            href="/auth/google",
+            style="display: flex; justify-content: center;"
+        ),
+        style="margin-top: 20px;"
     )
 )
 
-login_form = Form(
-            Input(name="email", type="email", placeholder="Email", required=True),
-            Input(name="pwd", type="password", placeholder="Password", required=True),
-            Button("Login", type="submit", cls="primary"),
-            P(A("Forgot Password?", href="/forgot-password")),
-            hx_post="/login", hx_target="#login-intro-text", id='login-form'
+login_form = Div(
+    Form(
+        Input(name="email", type="email", placeholder="Email", required=True),
+        Input(name="pwd", type="password", placeholder="Password", required=True),
+        Button("Login", type="submit", cls="primary"),
+        P(A("Forgot Password?", href="/forgot-password")),
+        hx_post="/login", hx_target="#login-intro-text", id='login-form'
+    ),
+    Div(
+        Div(style="margin: 20px 0 15px; text-align: center; color: var(--nord3); position: relative;",
+            children=[
+                Div(style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: var(--nord3);"),
+                Span("OR", style="position: relative; background: var(--nord6); padding: 0 20px;")
+            ]
+        ),
+        A(
+            Button("Sign in with Google", cls="google-oauth-btn"),
+            href="/auth/google",
+            style="display: flex; justify-content: center;"
+        )
     )
+)
 
 error_message = Div(
     I("We couldn't log you in... Are your details are correct?"), cls='login-error-message'
