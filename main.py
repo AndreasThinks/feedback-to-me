@@ -108,11 +108,14 @@ if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
 # --------------------
 
 def generate_external_link(url):
-    """Find the base domain env var, if it exists, and return the link with the base domain as as a string"""
+    """Find the base domain env var, if it exists, and return the link with the base domain as a string"""
     base_domain = os.environ.get("BASE_URL")
     if base_domain:
+        # Remove any protocol prefix from BASE_URL if present
+        base_domain = base_domain.replace("https://", "").replace("http://", "")
         return f"https://{base_domain}/{url}"
-    return url
+    # If BASE_URL is not set, return a relative path (will work for local development)
+    return f"/{url}"
 
 def generate_magic_link(email: str, process_id: Optional[str] = None) -> str:
     """
@@ -426,27 +429,47 @@ def google_login(req):
     """Initiate Google OAuth flow"""
     if not google_client:
         logger.error("Google OAuth not configured")
-        return Titled("OAuth Error", P("Google OAuth is not configured. Please contact the administrator."))
+        return generate_themed_page(
+            Titled("OAuth Error", 
+                   P("Google OAuth is not configured. Please contact the administrator."),
+                   A(Button("Back to Login"), href="/get-started")),
+            auth=None
+        )
     
-    # Build redirect URI
-    redirect_uri = generate_external_link("auth/callback")
-    
-    # Generate login link
-    login_link = google_client.login_link(redirect_uri=redirect_uri)
-    logger.info(f"Redirecting to Google OAuth: {login_link}")
-    
-    return RedirectResponse(login_link, status_code=303)
+    try:
+        # Build redirect URI
+        redirect_uri = generate_external_link("auth/callback")
+        logger.info(f"OAuth redirect_uri: {redirect_uri}")
+        
+        # Generate login link
+        login_link = google_client.login_link(redirect_uri=redirect_uri)
+        logger.info(f"Redirecting to Google OAuth: {login_link}")
+        
+        return RedirectResponse(login_link, status_code=303)
+    except Exception as e:
+        logger.error(f"Error initiating Google OAuth: {str(e)}", exc_info=True)
+        return generate_themed_page(
+            Titled("OAuth Error", 
+                   P("Failed to initiate Google sign-in. Please try again."),
+                   A(Button("Back to Login"), href="/get-started")),
+            auth=None
+        )
 
 @app.get("/auth/callback")
 def google_callback(code: str, req, sess):
     """Handle Google OAuth callback"""
     if not google_client:
         logger.error("Google OAuth not configured")
-        return Titled("OAuth Error", P("Google OAuth is not configured."))
+        return generate_themed_page(
+            Titled("OAuth Error", 
+                   P("Google OAuth is not configured. Please contact the administrator.")),
+            auth=None
+        )
     
     try:
         # Build redirect URI
         redirect_uri = generate_external_link("auth/callback")
+        logger.info(f"OAuth callback redirect_uri: {redirect_uri}")
         
         # Exchange code for token and get user info
         # Update the client with the authorization code
@@ -460,11 +483,26 @@ def google_callback(code: str, req, sess):
         given_name = user_info.get("given_name", "")
         google_id = user_info.get("sub")  # Google's unique user ID
         
-        if not email or not google_id:
-            logger.error("Failed to get email or ID from Google OAuth")
-            return Titled("OAuth Error", P("Failed to retrieve user information from Google."))
+        # Validate required fields
+        if not email:
+            logger.error("No email provided by Google OAuth")
+            return generate_themed_page(
+                Titled("OAuth Error", 
+                       P("Google did not provide an email address. Please ensure your Google account has a verified email."),
+                       A(Button("Try Again"), href="/get-started")),
+                auth=None
+            )
         
-        # Check if user exists
+        if not google_id:
+            logger.error("No user ID provided by Google OAuth")
+            return generate_themed_page(
+                Titled("OAuth Error", 
+                       P("Failed to retrieve user information from Google. Please try again."),
+                       A(Button("Try Again"), href="/get-started")),
+                auth=None
+            )
+        
+        # Check if user exists by email
         try:
             user = users[email]
             logger.info(f"Existing user logging in via OAuth: {email}")
@@ -501,10 +539,14 @@ def google_callback(code: str, req, sess):
         return RedirectResponse("/dashboard", status_code=303)
         
     except Exception as e:
-        logger.error(f"Error during Google OAuth callback: {str(e)}")
-        return Titled("OAuth Error", 
-                     P("An error occurred during Google sign-in. Please try again."),
-                     P(f"Error details: {str(e)}"))
+        logger.error(f"Error during Google OAuth callback: {str(e)}", exc_info=True)
+        return generate_themed_page(
+            Titled("OAuth Error", 
+                   P("An error occurred during Google sign-in. Please try again."),
+                   P(f"Error details: {str(e)}", style="color: var(--nord11); font-size: 0.9em;"),
+                   A(Button("Try Again"), href="/get-started")),
+            auth=None
+        )
 
 @app.get("/forgot-password")
 def get_forgot_password():
