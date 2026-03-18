@@ -89,19 +89,23 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # OAuth Setup
 # --------------------
 
-# Initialize Google OAuth client if credentials are configured
-google_client = None
-if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
-    try:
-        google_client = GoogleAppClient(
-            client_id=GOOGLE_CLIENT_ID,
-            client_secret=GOOGLE_CLIENT_SECRET,
-            code="",  # Will be filled in during callback
-            scope="openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
-        )
-        logger.info("Google OAuth client initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize Google OAuth client: {str(e)}")
+# Store OAuth config; create per-request clients to avoid shared mutable state
+_google_oauth_configured = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+_google_oauth_scope = "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
+
+if _google_oauth_configured:
+    logger.info("Google OAuth credentials found, OAuth login enabled")
+else:
+    logger.info("Google OAuth credentials not configured, OAuth login disabled")
+
+def _create_google_client(code=""):
+    """Create a fresh GoogleAppClient instance per request to avoid thread-safety issues."""
+    return GoogleAppClient(
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        code=code,
+        scope=_google_oauth_scope
+    )
 
 # --------------------
 # Helper Functions
@@ -111,8 +115,10 @@ def generate_external_link(url):
     """Find the base domain env var, if it exists, and return the link with the base domain as a string"""
     base_domain = os.environ.get("BASE_URL")
     if base_domain:
-        # Remove any protocol prefix from BASE_URL if present
-        base_domain = base_domain.replace("https://", "").replace("http://", "")
+        # If BASE_URL already includes a protocol, use it as-is
+        if base_domain.startswith("http://") or base_domain.startswith("https://"):
+            return f"{base_domain.rstrip('/')}/{url}"
+        # Otherwise assume https
         return f"https://{base_domain}/{url}"
     # If BASE_URL is not set, return a relative path (will work for local development)
     return f"/{url}"
@@ -387,7 +393,6 @@ def get():
 @limiter.limit("5/minute")
 @app.post("/login")
 def post_login(login: Login, request: Request, sess):
-    print(login)
     logger.debug(f"Login attempt for email: {login.email}")
     try:
         u = users[login.email]
@@ -395,7 +400,12 @@ def post_login(login: Login, request: Request, sess):
     except Exception:
         logger.warning(f"Login failed - user not found: {login.email}")
         return error_message
-    
+
+    # OAuth-only users don't have a password; reject password login for them
+    if not u.pwd:
+        logger.warning(f"Login failed - OAuth-only account attempted password login: {login.email}")
+        return error_message
+
     if not bcrypt.checkpw(login.pwd.encode("utf-8"), u.pwd.encode("utf-8")):
         logger.warning(f"Login failed - invalid password for user: {login.email}")
         return error_message
@@ -425,95 +435,110 @@ def get_logout(sess):
 # -----------------------
 
 @app.get("/auth/google")
-def google_login(req):
+def google_login(req, sess):
     """Initiate Google OAuth flow"""
-    if not google_client:
+    if not _google_oauth_configured:
         logger.error("Google OAuth not configured")
         return generate_themed_page(
-            Titled("OAuth Error", 
+            Titled("OAuth Error",
                    P("Google OAuth is not configured. Please contact the administrator."),
                    A(Button("Back to Login"), href="/get-started")),
             auth=None
         )
-    
+
     try:
+        # Generate CSRF state token and store in session
+        state = secrets.token_urlsafe(32)
+        sess["oauth_state"] = state
+
         # Build redirect URI
         redirect_uri = generate_external_link("auth/callback")
-        logger.info(f"OAuth redirect_uri: {redirect_uri}")
-        
-        # Generate login link
-        login_link = google_client.login_link(redirect_uri=redirect_uri)
-        logger.info(f"Redirecting to Google OAuth: {login_link}")
-        
+        logger.debug(f"OAuth redirect_uri: {redirect_uri}")
+
+        # Create a fresh client per request to avoid shared mutable state
+        client = _create_google_client()
+        login_link = client.login_link(redirect_uri=redirect_uri, state=state)
+        logger.debug("Redirecting user to Google OAuth")
+
         return RedirectResponse(login_link, status_code=303)
     except Exception as e:
         logger.error(f"Error initiating Google OAuth: {str(e)}", exc_info=True)
         return generate_themed_page(
-            Titled("OAuth Error", 
+            Titled("OAuth Error",
                    P("Failed to initiate Google sign-in. Please try again."),
                    A(Button("Back to Login"), href="/get-started")),
             auth=None
         )
 
 @app.get("/auth/callback")
-def google_callback(code: str, req, sess):
+def google_callback(code: str, req, sess, state: str = ""):
     """Handle Google OAuth callback"""
-    if not google_client:
+    if not _google_oauth_configured:
         logger.error("Google OAuth not configured")
         return generate_themed_page(
-            Titled("OAuth Error", 
+            Titled("OAuth Error",
                    P("Google OAuth is not configured. Please contact the administrator.")),
             auth=None
         )
-    
+
+    # Verify CSRF state token
+    expected_state = sess.pop("oauth_state", None)
+    if not expected_state or state != expected_state:
+        logger.error("OAuth state mismatch — possible CSRF attack")
+        return generate_themed_page(
+            Titled("OAuth Error",
+                   P("Authentication failed due to an invalid request. Please try again."),
+                   A(Button("Try Again"), href="/get-started")),
+            auth=None
+        )
+
     try:
         # Build redirect URI
         redirect_uri = generate_external_link("auth/callback")
-        logger.info(f"OAuth callback redirect_uri: {redirect_uri}")
-        
-        # Exchange code for token and get user info
-        # Update the client with the authorization code
-        google_client.code = code
-        user_info = google_client.retr_info(code=code, redirect_uri=redirect_uri)
-        
-        logger.info(f"OAuth callback received user info: {user_info}")
-        
+        logger.debug(f"OAuth callback redirect_uri: {redirect_uri}")
+
+        # Create a fresh client per request and exchange code for user info
+        client = _create_google_client(code=code)
+        user_info = client.retr_info(code=code, redirect_uri=redirect_uri)
+
+        logger.debug("OAuth callback received user info successfully")
+
         # Extract user information
         email = user_info.get("email")
         given_name = user_info.get("given_name", "")
         google_id = user_info.get("sub")  # Google's unique user ID
-        
+
         # Validate required fields
         if not email:
             logger.error("No email provided by Google OAuth")
             return generate_themed_page(
-                Titled("OAuth Error", 
+                Titled("OAuth Error",
                        P("Google did not provide an email address. Please ensure your Google account has a verified email."),
                        A(Button("Try Again"), href="/get-started")),
                 auth=None
             )
-        
+
         if not google_id:
             logger.error("No user ID provided by Google OAuth")
             return generate_themed_page(
-                Titled("OAuth Error", 
+                Titled("OAuth Error",
                        P("Failed to retrieve user information from Google. Please try again."),
                        A(Button("Try Again"), href="/get-started")),
                 auth=None
             )
-        
+
         # Check if user exists by email
         try:
             user = users[email]
             logger.info(f"Existing user logging in via OAuth: {email}")
-            
+
             # Update OAuth fields if not set
             if not user.oauth_provider or not user.oauth_id:
                 user.oauth_provider = "google"
                 user.oauth_id = google_id
                 users.update(user)
                 logger.info(f"Linked Google OAuth to existing account: {email}")
-            
+
         except Exception:
             # Create new user
             logger.info(f"Creating new user via OAuth: {email}")
@@ -531,19 +556,18 @@ def google_callback(code: str, req, sess):
                 "oauth_provider": "google",
                 "oauth_id": google_id
             })
-        
+
         # Log the user in
         sess["auth"] = user.id
         logger.info(f"User logged in via Google OAuth: {email}")
-        
+
         return RedirectResponse("/dashboard", status_code=303)
-        
+
     except Exception as e:
         logger.error(f"Error during Google OAuth callback: {str(e)}", exc_info=True)
         return generate_themed_page(
-            Titled("OAuth Error", 
+            Titled("OAuth Error",
                    P("An error occurred during Google sign-in. Please try again."),
-                   P(f"Error details: {str(e)}", style="color: var(--nord11); font-size: 0.9em;"),
                    A(Button("Try Again"), href="/get-started")),
             auth=None
         )
