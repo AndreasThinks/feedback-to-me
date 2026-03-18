@@ -226,6 +226,44 @@ def github_callback(code: str, req, sess):
     pass
 ```
 
+## LinkedIn OAuth Setup
+
+LinkedIn OAuth is also supported using LinkedIn's OpenID Connect flow.
+
+### 1. Create a LinkedIn App
+
+1. Go to [LinkedIn Developers](https://www.linkedin.com/developers/apps)
+2. Click "Create app"
+3. Fill in the required details (app name, LinkedIn Page, logo)
+4. Under the **Auth** tab, add your redirect URL:
+   - Production: `https://feedback-to.me/auth/linkedin/callback`
+   - Development: `http://localhost:8080/auth/linkedin/callback`
+5. Under the **Products** tab, request access to "Sign In with LinkedIn using OpenID Connect"
+
+### 2. Configure Environment Variables
+
+Add to your `.env`:
+```
+LINKEDIN_CLIENT_ID=your-linkedin-client-id
+LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret
+```
+
+### 3. LinkedIn OAuth Scopes
+
+The integration uses LinkedIn's OpenID Connect scopes:
+- `openid` — required for OpenID Connect
+- `profile` — access to name and profile info
+- `email` — access to email address
+
+### 4. How It Works
+
+LinkedIn OAuth follows the same pattern as Google:
+1. User clicks "Sign in with LinkedIn" → redirects to LinkedIn authorization
+2. User grants permission → LinkedIn redirects back with authorization code
+3. App exchanges code for access token at LinkedIn's token endpoint
+4. App fetches user profile from LinkedIn's userinfo endpoint
+5. User is created (or linked) and logged in
+
 ## Notes
 
 - OAuth users can still set a password later if needed (feature to be implemented)
@@ -236,11 +274,11 @@ def github_callback(code: str, req, sess):
 
 ## Next Steps
 
-1. Add "Sign in with Google" button to UI in `pages.py`
-2. Test the OAuth flow end-to-end
-3. Consider adding GitHub/Microsoft OAuth for more options
-4. Add UI for users to link/unlink OAuth providers
-5. Add option for OAuth users to set a password
+1. Test OAuth flows end-to-end
+2. Consider adding GitHub/Microsoft OAuth for more options
+3. Add UI for users to link/unlink OAuth providers
+4. Add option for OAuth users to set a password
+5. Enrich user profiles with LinkedIn data (role, company) when available
 
 ## Resources
 

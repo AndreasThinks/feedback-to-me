@@ -25,7 +25,7 @@ from pages import how_it_works_page, generate_themed_page, faq_page, error_messa
 
 from llm_functions import convert_feedback_text_to_themes, generate_completed_feedback_report
 
-from config import MINIMUM_SUBMISSIONS_REQUIRED, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS, BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+from config import MINIMUM_SUBMISSIONS_REQUIRED, MAGIC_LINK_EXPIRY_DAYS, FEEDBACK_QUALITIES, STARTING_CREDITS, BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET
 from utils import beforeware, validate_email_format, validate_password_strength, validate_passwords_match
 
 # OAuth imports
@@ -106,6 +106,20 @@ def _create_google_client(code=""):
         code=code,
         scope=_google_oauth_scope
     )
+
+# LinkedIn OAuth Setup
+_linkedin_oauth_configured = bool(LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET)
+_linkedin_oauth_scope = "openid profile email"
+
+if _linkedin_oauth_configured:
+    logger.info("LinkedIn OAuth credentials found, OAuth login enabled")
+else:
+    logger.info("LinkedIn OAuth credentials not configured, OAuth login disabled")
+
+# LinkedIn OAuth constants
+_LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization"
+_LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
+_LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 
 # --------------------
 # Helper Functions
@@ -571,6 +585,179 @@ def google_callback(code: str, req, sess, state: str = ""):
                    A(Button("Try Again"), href="/get-started")),
             auth=None
         )
+
+@app.get("/auth/linkedin")
+def linkedin_login(req, sess):
+    """Initiate LinkedIn OAuth flow"""
+    if not _linkedin_oauth_configured:
+        logger.error("LinkedIn OAuth not configured")
+        return generate_themed_page(
+            Titled("OAuth Error",
+                   P("LinkedIn OAuth is not configured. Please contact the administrator."),
+                   A(Button("Back to Login"), href="/get-started")),
+            auth=None
+        )
+
+    try:
+        state = secrets.token_urlsafe(32)
+        sess["linkedin_oauth_state"] = state
+
+        redirect_uri = generate_external_link("auth/linkedin/callback")
+        logger.debug(f"LinkedIn OAuth redirect_uri: {redirect_uri}")
+
+        from urllib.parse import urlencode
+        params = urlencode({
+            "response_type": "code",
+            "client_id": LINKEDIN_CLIENT_ID,
+            "redirect_uri": redirect_uri,
+            "state": state,
+            "scope": _linkedin_oauth_scope,
+        })
+        login_link = f"{_LINKEDIN_AUTH_URL}?{params}"
+        logger.debug("Redirecting user to LinkedIn OAuth")
+
+        return RedirectResponse(login_link, status_code=303)
+    except Exception as e:
+        logger.error(f"Error initiating LinkedIn OAuth: {str(e)}", exc_info=True)
+        return generate_themed_page(
+            Titled("OAuth Error",
+                   P("Failed to initiate LinkedIn sign-in. Please try again."),
+                   A(Button("Back to Login"), href="/get-started")),
+            auth=None
+        )
+
+
+@app.get("/auth/linkedin/callback")
+def linkedin_callback(code: str, req, sess, state: str = ""):
+    """Handle LinkedIn OAuth callback"""
+    if not _linkedin_oauth_configured:
+        logger.error("LinkedIn OAuth not configured")
+        return generate_themed_page(
+            Titled("OAuth Error",
+                   P("LinkedIn OAuth is not configured. Please contact the administrator.")),
+            auth=None
+        )
+
+    # Verify CSRF state token
+    expected_state = sess.pop("linkedin_oauth_state", None)
+    if not expected_state or state != expected_state:
+        logger.error("LinkedIn OAuth state mismatch — possible CSRF attack")
+        return generate_themed_page(
+            Titled("OAuth Error",
+                   P("Authentication failed due to an invalid request. Please try again."),
+                   A(Button("Try Again"), href="/get-started")),
+            auth=None
+        )
+
+    try:
+        redirect_uri = generate_external_link("auth/linkedin/callback")
+
+        # Exchange authorization code for access token
+        token_response = requests.post(_LINKEDIN_TOKEN_URL, data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "client_id": LINKEDIN_CLIENT_ID,
+            "client_secret": LINKEDIN_CLIENT_SECRET,
+        }, headers={"Content-Type": "application/x-www-form-urlencoded"})
+
+        if token_response.status_code != 200:
+            logger.error(f"LinkedIn token exchange failed: {token_response.status_code} {token_response.text}")
+            return generate_themed_page(
+                Titled("OAuth Error",
+                       P("Failed to authenticate with LinkedIn. Please try again."),
+                       A(Button("Try Again"), href="/get-started")),
+                auth=None
+            )
+
+        token_data = token_response.json()
+        access_token = token_data.get("access_token")
+
+        # Fetch user profile from LinkedIn's OpenID Connect userinfo endpoint
+        userinfo_response = requests.get(_LINKEDIN_USERINFO_URL, headers={
+            "Authorization": f"Bearer {access_token}"
+        })
+
+        if userinfo_response.status_code != 200:
+            logger.error(f"LinkedIn userinfo request failed: {userinfo_response.status_code}")
+            return generate_themed_page(
+                Titled("OAuth Error",
+                       P("Failed to retrieve profile from LinkedIn. Please try again."),
+                       A(Button("Try Again"), href="/get-started")),
+                auth=None
+            )
+
+        user_info = userinfo_response.json()
+        logger.debug("LinkedIn OAuth callback received user info successfully")
+
+        # Extract user information from OpenID Connect userinfo
+        email = user_info.get("email")
+        given_name = user_info.get("given_name", "")
+        linkedin_id = user_info.get("sub")  # LinkedIn's unique user ID (OpenID Connect)
+
+        if not email:
+            logger.error("No email provided by LinkedIn OAuth")
+            return generate_themed_page(
+                Titled("OAuth Error",
+                       P("LinkedIn did not provide an email address. Please ensure your LinkedIn account has a verified email."),
+                       A(Button("Try Again"), href="/get-started")),
+                auth=None
+            )
+
+        if not linkedin_id:
+            logger.error("No user ID provided by LinkedIn OAuth")
+            return generate_themed_page(
+                Titled("OAuth Error",
+                       P("Failed to retrieve user information from LinkedIn. Please try again."),
+                       A(Button("Try Again"), href="/get-started")),
+                auth=None
+            )
+
+        # Check if user exists by email
+        try:
+            user = users[email]
+            logger.info(f"Existing user logging in via LinkedIn OAuth: {email}")
+
+            # Update OAuth fields if not set
+            if not user.oauth_provider or not user.oauth_id:
+                user.oauth_provider = "linkedin"
+                user.oauth_id = linkedin_id
+                users.update(user)
+                logger.info(f"Linked LinkedIn OAuth to existing account: {email}")
+
+        except Exception:
+            # Create new user with LinkedIn profile enrichment
+            logger.info(f"Creating new user via LinkedIn OAuth: {email}")
+            user = users.insert({
+                "id": secrets.token_hex(16),
+                "first_name": given_name or email.split("@")[0],
+                "email": email,
+                "role": None,
+                "company": None,
+                "team": None,
+                "created_at": datetime.now(),
+                "pwd": "",  # No password for OAuth users
+                "is_confirmed": True,  # OAuth users are auto-confirmed
+                "credits": int(STARTING_CREDITS),
+                "oauth_provider": "linkedin",
+                "oauth_id": linkedin_id
+            })
+
+        # Log the user in
+        sess["auth"] = user.id
+        logger.info(f"User logged in via LinkedIn OAuth: {email}")
+
+        return RedirectResponse("/dashboard", status_code=303)
+
+    except Exception as e:
+        logger.error(f"Error during LinkedIn OAuth callback: {str(e)}", exc_info=True)
+        return generate_themed_page(
+            Titled("OAuth Error",
+                   P("An error occurred during LinkedIn sign-in. Please try again."),
+                   A(Button("Try Again"), href="/get-started")),
+            auth=None
+        )
+
 
 @app.get("/forgot-password")
 def get_forgot_password():

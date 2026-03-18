@@ -375,6 +375,11 @@ login_or_register_page = Container(
             href="/auth/google",
             style="display: flex; justify-content: center;"
         ),
+        A(
+            Button("Sign in with LinkedIn", cls="linkedin-oauth-btn"),
+            href="/auth/linkedin",
+            style="display: flex; justify-content: center; margin-top: 10px;"
+        ),
         style="margin-top: 20px;"
     )
 )
@@ -398,6 +403,11 @@ login_form = Div(
             Button("Sign in with Google", cls="google-oauth-btn"),
             href="/auth/google",
             style="display: flex; justify-content: center;"
+        ),
+        A(
+            Button("Sign in with LinkedIn", cls="linkedin-oauth-btn"),
+            href="/auth/linkedin",
+            style="display: flex; justify-content: center; margin-top: 10px;"
         )
     )
 )
